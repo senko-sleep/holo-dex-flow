@@ -56,11 +56,13 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
               />
             </div>
             <div className="relative bg-gradient-card backdrop-blur-xl p-8 md:flex gap-8">
-              <img
-                src={anime.images.jpg.large_image_url || anime.images.jpg.image_url}
-                alt={anime.title}
-                className="w-full md:w-64 h-auto rounded-xl shadow-glow mx-auto md:mx-0 mb-6 md:mb-0"
-              />
+              <div className="w-full md:w-64 mx-auto md:mx-0 mb-6 md:mb-0">
+                <img
+                  src={anime.images.jpg.large_image_url || anime.images.jpg.image_url}
+                  alt={anime.title}
+                  className="w-full h-auto object-contain rounded-xl shadow-glow max-h-96"
+                />
+              </div>
               <div className="flex-1">
                 <h1 className="text-4xl font-bold mb-2 text-foreground">
                   {anime.title_english || anime.title}
