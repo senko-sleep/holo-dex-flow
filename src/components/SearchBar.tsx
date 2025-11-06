@@ -83,7 +83,7 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
         )}
       </div>
 
-      {isOpen && results.length > 0 && (
+      {isOpen && results && results.length > 0 && (
         <div className="absolute top-full mt-2 w-full bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-card overflow-hidden z-[100] animate-slide-up">
           <div className="max-h-96 overflow-y-auto">
             {results.map((anime) => (
