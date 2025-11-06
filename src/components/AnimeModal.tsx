@@ -23,7 +23,9 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
           animeApi.getAnimeCharacters(anime.mal_id),
           animeApi.getThemeSongs(anime.title),
         ]);
-        setCharacters(charData);
+        // Sort characters by popularity (favorites count)
+        const sortedChars = charData.sort((a, b) => b.favorites - a.favorites);
+        setCharacters(sortedChars);
         setThemeSongs(themeData);
       } catch (error) {
         console.error('Error fetching anime details:', error);
@@ -150,31 +152,81 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
               <div className="flex items-center gap-2 mb-6">
                 <Users className="h-6 w-6 text-primary" />
                 <h2 className="text-2xl font-bold">Characters & Voice Actors</h2>
+                <span className="text-sm text-muted-foreground ml-auto">
+                  Sorted by popularity
+                </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {characters.map((char) => (
-                  <div
-                    key={char.character.mal_id}
-                    className="flex items-center gap-4 p-4 bg-secondary/50 rounded-xl"
-                  >
-                    <img
-                      src={char.character.images.jpg.image_url}
-                      alt={char.character.name}
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate">
-                        {char.character.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{char.role}</p>
-                      {char.voice_actors && char.voice_actors.length > 0 && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {char.voice_actors[0].person.name} ({char.voice_actors[0].language})
-                        </p>
-                      )}
+              <div className="grid gap-4">
+                {characters.map((char) => {
+                  const japaneseVA = char.voice_actors?.find(va => va.language === 'Japanese');
+                  const englishVA = char.voice_actors?.find(va => va.language === 'English');
+                  
+                  return (
+                    <div
+                      key={char.character.mal_id}
+                      className="bg-secondary/50 rounded-xl p-4 hover:bg-secondary/70 transition-colors"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Character Info */}
+                        <div className="flex items-center gap-3 flex-1">
+                          <img
+                            src={char.character.images.jpg.image_url}
+                            alt={char.character.name}
+                            className="w-20 h-24 object-cover rounded-lg shadow-md"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-foreground text-lg truncate">
+                              {char.character.name}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-1">{char.role}</p>
+                            {char.favorites > 0 && (
+                              <p className="text-xs text-primary font-medium">
+                                ❤️ {char.favorites.toLocaleString()} favorites
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Voice Actors */}
+                        <div className="flex gap-4">
+                          {/* Japanese VA (Sub) */}
+                          {japaneseVA && (
+                            <div className="flex items-center gap-3 text-right">
+                              <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground mb-1">SUB (Japanese)</p>
+                                <p className="font-semibold text-foreground text-sm truncate max-w-32">
+                                  {japaneseVA.person.name}
+                                </p>
+                              </div>
+                              <img
+                                src={japaneseVA.person.images.jpg.image_url}
+                                alt={japaneseVA.person.name}
+                                className="w-16 h-20 object-cover rounded-lg shadow-md"
+                              />
+                            </div>
+                          )}
+
+                          {/* English VA (Dub) */}
+                          {englishVA && (
+                            <div className="flex items-center gap-3 text-right">
+                              <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground mb-1">DUB (English)</p>
+                                <p className="font-semibold text-foreground text-sm truncate max-w-32">
+                                  {englishVA.person.name}
+                                </p>
+                              </div>
+                              <img
+                                src={englishVA.person.images.jpg.image_url}
+                                alt={englishVA.person.name}
+                                className="w-16 h-20 object-cover rounded-lg shadow-md"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

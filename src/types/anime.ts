@@ -34,6 +34,7 @@ export interface AnimeCharacter {
     };
   };
   role: string;
+  favorites: number;
   voice_actors?: Array<{
     person: {
       mal_id: number;
