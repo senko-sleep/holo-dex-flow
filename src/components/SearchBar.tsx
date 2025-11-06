@@ -84,7 +84,7 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
       </div>
 
       {isOpen && results && results.length > 0 && (
-        <div className="absolute top-full mt-2 w-full bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-card overflow-hidden z-[100] animate-slide-up">
+        <div className="absolute top-full mt-2 w-full bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-card overflow-hidden z-[9999] animate-slide-up">
           <div className="max-h-96 overflow-y-auto">
             {results.map((anime) => (
               <button
@@ -115,7 +115,7 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
       )}
 
       {isOpen && isLoading && (
-        <div className="absolute top-full mt-2 w-full bg-card/95 backdrop-blur-md border border-border rounded-xl p-4 text-center text-muted-foreground animate-fade-in z-[100]">
+        <div className="absolute top-full mt-2 w-full bg-card/95 backdrop-blur-md border border-border rounded-xl p-4 text-center text-muted-foreground animate-fade-in z-[9999]">
           Searching...
         </div>
       )}
