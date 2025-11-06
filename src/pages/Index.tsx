@@ -63,7 +63,7 @@ const Index = () => {
                 <div key={i} className="aspect-[2/3] bg-card rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : (
+          ) : seasonalAnime && seasonalAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
               {seasonalAnime.map((anime) => (
                 <AnimeCard
@@ -72,6 +72,10 @@ const Index = () => {
                   onClick={() => setSelectedAnime(anime)}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No seasonal anime found. Please check your connection and try refreshing.</p>
             </div>
           )}
         </section>
@@ -88,7 +92,7 @@ const Index = () => {
                 <div key={i} className="aspect-[2/3] bg-card rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : (
+          ) : topAnime && topAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
               {topAnime.map((anime) => (
                 <AnimeCard
@@ -97,6 +101,10 @@ const Index = () => {
                   onClick={() => setSelectedAnime(anime)}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No top anime found. Please check your connection and try refreshing.</p>
             </div>
           )}
         </section>
