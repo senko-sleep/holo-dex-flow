@@ -12,7 +12,7 @@ import { applySeasonalTheme } from '@/lib/seasonalTheme';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { toast } from 'sonner';
 
-type ReadingMode = 'single' | 'continuous' | 'webtoon';
+type ReadingMode = 'single' | 'continuous' | 'webtoon' | 'double';
 type Direction = 'ltr' | 'rtl';
 
 const POLLING_INTERVAL = 30000; // 30 seconds
@@ -173,7 +173,7 @@ const MangaReader = () => {
     
     // Check for initial view mode from URL
     const viewMode = searchParams.get('view');
-    if (viewMode === 'single' || viewMode === 'continuous' || viewMode === 'webtoon') {
+    if (viewMode === 'single' || viewMode === 'continuous' || viewMode === 'webtoon' || viewMode === 'double') {
       setReadingMode(viewMode);
     }
     
@@ -212,6 +212,8 @@ const MangaReader = () => {
     return `${images.baseUrl}/${imageQuality}/${images.chapter.hash}/${fileName}`;
   }, [images, imageQuality]);
 
+  const step = readingMode === 'double' ? 2 : 1;
+
   const goToPage = useCallback((page: number) => {
     if (!images) return;
     const newPage = Math.max(0, Math.min(page, images.chapter.data.length - 1));
@@ -232,8 +234,8 @@ const MangaReader = () => {
   }, [images, chapterId, readingMode]);
 
   const goToNextPage = useCallback(() => {
-    if (images && currentPage < images.chapter.data.length - 1) {
-      goToPage(currentPage + 1);
+    if (images && currentPage + step < images.chapter.data.length) {
+      goToPage(currentPage + step);
     } else if (chapters.length > 0 && chapterId) {
       // Go to next chapter if available
       const currentIndex = chapters.findIndex(ch => ch.id === chapterId);
@@ -242,11 +244,11 @@ const MangaReader = () => {
         navigate(`/manga/read/${mangaId}/${prevChapter.id}?view=${readingMode}`, { replace: true });
       }
     }
-  }, [images, currentPage, chapterId, chapters, navigate, mangaId, readingMode, goToPage]);
+  }, [images, currentPage, step, chapterId, chapters, navigate, mangaId, readingMode, goToPage]);
 
   const goToPreviousPage = useCallback(() => {
-    if (currentPage > 0) {
-      goToPage(currentPage - 1);
+    if (currentPage - step >= 0) {
+      goToPage(currentPage - step);
     } else if (chapters.length > 0 && chapterId) {
       // Go to previous chapter if available
       const currentIndex = chapters.findIndex(ch => ch.id === chapterId);
@@ -255,7 +257,7 @@ const MangaReader = () => {
         navigate(`/manga/read/${mangaId}/${nextChapter.id}?view=${readingMode}`, { replace: true });
       }
     }
-  }, [currentPage, chapterId, chapters, navigate, mangaId, readingMode, goToPage]);
+  }, [currentPage, step, chapterId, chapters, navigate, mangaId, readingMode, goToPage]);
   
   // Keyboard shortcuts
   useHotkeys('right, l', () => {
@@ -306,7 +308,7 @@ const MangaReader = () => {
   };
   
   const handleReadingModeChange = (mode: string) => {
-    if (mode === 'single' || mode === 'continuous' || mode === 'webtoon') {
+    if (mode === 'single' || mode === 'continuous' || mode === 'webtoon' || mode === 'double') {
       setReadingMode(mode);
       navigate(`?view=${mode}`, { replace: true });
     }
@@ -373,6 +375,23 @@ const MangaReader = () => {
   }
 
   const totalPages = images?.chapter.data.length || 0;
+  const smallPage = currentPage;
+  const largePage = currentPage + 1;
+  const showSecond = largePage < totalPages;
+  const displayPage = showSecond ? `${currentPage + 1} - ${currentPage + 2}` : currentPage + 1;
+
+  let leftPage: number | null = null;
+  let rightPage: number | null = null;
+
+  if (readingMode === 'double') {
+    if (direction === 'ltr') {
+      leftPage = smallPage;
+      rightPage = showSecond ? largePage : null;
+    } else {
+      leftPage = showSecond ? largePage : null;
+      rightPage = smallPage;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -414,7 +433,7 @@ const MangaReader = () => {
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">
-                {currentPage + 1} / {totalPages}
+                {displayPage} / {totalPages}
               </span>
               
               <Select 
@@ -428,6 +447,7 @@ const MangaReader = () => {
                   <SelectItem value="webtoon">Webtoon</SelectItem>
                   <SelectItem value="single">Single Page</SelectItem>
                   <SelectItem value="continuous">Continuous</SelectItem>
+                  <SelectItem value="double">Book</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -514,7 +534,7 @@ const MangaReader = () => {
             </Button>
             
             <span className="text-sm text-muted-foreground">
-              {currentPage + 1} / {totalPages}
+              {displayPage} / {totalPages}
             </span>
             
             <Button
@@ -611,7 +631,7 @@ const MangaReader = () => {
                     key={index}
                     onClick={() => handleThumbnailClick(index)}
                     className={`w-full aspect-[2/3] rounded overflow-hidden border-2 transition-all ${
-                      currentPage === index
+                      index >= currentPage && index < currentPage + (readingMode === 'double' && showSecond ? 2 : 1)
                         ? 'border-primary scale-105'
                         : index <= lastReadPage
                         ? 'border-foreground/20 hover:border-foreground/40'
@@ -722,6 +742,69 @@ const MangaReader = () => {
                   disabled={!images || currentPage === totalPages - 1}
                   className={`p-8 pointer-events-auto ${
                     !images || currentPage === totalPages - 1 ? 'opacity-0' : 'opacity-100'
+                  } transition-opacity duration-200`}
+                >
+                  <div className="bg-background/80 backdrop-blur-sm rounded-full p-3 shadow-lg border border-border">
+                    <ChevronRight className="h-6 w-6 text-foreground" />
+                  </div>
+                </button>
+              </div>
+            </div>
+          ) : readingMode === 'double' ? (
+            // Double Page Mode (Book-like)
+            <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4">
+              <div className="relative max-w-4xl w-full flex gap-2 items-start"
+                   style={{
+                     transform: `scale(${zoom / 100})`,
+                     transformOrigin: 'center',
+                     transition: 'transform 0.2s ease-in-out'
+                   }}>
+                {leftPage !== null && (
+                  <div className="flex-1">
+                    <img
+                      src={getImageUrl(leftPage)}
+                      alt={`Page ${leftPage + 1}`}
+                      className="w-full h-auto shadow-lg rounded"
+                      loading="eager"
+                    />
+                  </div>
+                )}
+                {rightPage !== null && (
+                  <div className="flex-1">
+                    <img
+                      src={getImageUrl(rightPage)}
+                      alt={`Page ${rightPage + 1}`}
+                      className="w-full h-auto shadow-lg rounded"
+                      loading="eager"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-border shadow-lg">
+                <span className="text-sm font-medium text-foreground">
+                  {displayPage} / {totalPages}
+                </span>
+              </div>
+              
+              {/* Navigation Overlay */}
+              <div className="fixed inset-0 flex items-center justify-between px-4 pointer-events-none">
+                <button
+                  onClick={goToPreviousPage}
+                  disabled={currentPage === 0}
+                  className={`p-8 pointer-events-auto ${
+                    currentPage === 0 ? 'opacity-0' : 'opacity-100'
+                  } transition-opacity duration-200`}
+                >
+                  <div className="bg-background/80 backdrop-blur-sm rounded-full p-3 shadow-lg border border-border">
+                    <ChevronLeft className="h-6 w-6 text-foreground" />
+                  </div>
+                </button>
+                
+                <button
+                  onClick={goToNextPage}
+                  disabled={!images || currentPage + (showSecond ? 2 : 1) >= totalPages}
+                  className={`p-8 pointer-events-auto ${
+                    !images || currentPage + (showSecond ? 2 : 1) >= totalPages ? 'opacity-0' : 'opacity-100'
                   } transition-opacity duration-200`}
                 >
                   <div className="bg-background/80 backdrop-blur-sm rounded-full p-3 shadow-lg border border-border">

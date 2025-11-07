@@ -1,7 +1,9 @@
 import { Manga, MangaChapter, MangaChapterImages } from '@/types/manga';
 import { cache } from '@/lib/cache';
 
-const MANGADEX_BASE_URL = 'https://api.mangadex.org';
+const MANGADEX_BASE_URL = import.meta.env.DEV
+  ? '/api/mangadex'
+  : 'https://api.mangadex.org';
 
 // Rate limiting helper
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

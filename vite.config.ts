@@ -19,9 +19,16 @@ export default defineConfig(({ mode }) => ({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Sending Request to the Target:', req.method, req.url);
+            // Add CORS headers to the request
+            proxyReq.setHeader('Origin', 'http://localhost:8080');
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
             console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+            // Add CORS headers to the response
+            proxyRes.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080';
+            proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+            proxyRes.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
+            proxyRes.headers['Vary'] = 'Origin';
           });
         }
       }
