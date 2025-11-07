@@ -2,6 +2,31 @@ import { Manga, MangaChapter, MangaChapterImages } from '@/types/manga';
 import { MangaSearchResult } from '@/types/mangaProvider';
 import { BaseMangaProvider } from './BaseMangaProvider';
 import { FastHttpClient } from '@/lib/fastHttp';
+import { cache } from '@/lib/cache';
+
+// Rate limiting
+const RATE_LIMIT = 5; // Requests per window
+const RATE_WINDOW = 1000; // 1 second
+let requestQueue: number[] = [];
+
+// Helper to handle rate limiting
+const rateLimit = async () => {
+  const now = Date.now();
+  // Remove requests older than the window
+  requestQueue = requestQueue.filter(timestamp => now - timestamp < RATE_WINDOW);
+  
+  // If we've hit the rate limit, wait until the oldest request falls out of the window
+  if (requestQueue.length >= RATE_LIMIT) {
+    const oldest = requestQueue[0];
+    const waitTime = RATE_WINDOW - (now - oldest);
+    if (waitTime > 0) {
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  
+  // Add current request to the queue
+  requestQueue.push(Date.now());
+};
 
 type MangaDexTag = {
   id: string;
@@ -55,19 +80,31 @@ interface MangaDexChapterResponse {
 }
 
 interface MangaDexSearchResponse {
-  data?: MangaDexMangaResponse[];
+  result: string;
+  response: string;
+  data: MangaDexMangaResponse[];
+  limit: number;
+  offset: number;
+  total: number;
 }
 
 interface MangaDexMangaDetailResponse {
+  result: string;
+  response: string;
   data: MangaDexMangaResponse;
 }
 
 interface MangaDexChapterFeedResponse {
-  data?: MangaDexChapterResponse[];
-  total?: number;
+  result: string;
+  response: string;
+  data: MangaDexChapterResponse[];
+  limit: number;
+  offset: number;
+  total: number;
 }
 
 interface MangaDexChapterImagesResponse {
+  result: string;
   baseUrl: string;
   chapter: {
     hash: string;
@@ -86,8 +123,9 @@ interface MangaDexContentRating {
 
 export class MangaDexProvider extends BaseMangaProvider {
   readonly name = 'MangaDex';
-  readonly baseUrl = 'https://api.mangadex.org';
-
+  readonly baseUrl = import.meta.env.DEV 
+    ? '/api/mangadex' 
+    : 'https://api.mangadex.org';
   private readonly coverBaseUrl = 'https://uploads.mangadex.org/covers';
   private contentRatings: string[] = [];
 
@@ -105,127 +143,77 @@ export class MangaDexProvider extends BaseMangaProvider {
   }
 
   async searchManga(query: string, page: number = 1, limit: number = 24): Promise<MangaSearchResult[]> {
-    const offset = (page - 1) * limit;
-    const contentRatings = await this.getContentRatings();
-    const cacheKey = `search:${query}:${page}:${limit}`;
+    const cacheKey = `mangadex:search:${query}:${page}:${limit}`;
     
-    try {
-      // Prepare search parameters
-      const params = {
-        title: query,
-        limit: limit.toString(),
-        offset: offset.toString(),
-        'order[relevance]': 'desc',
-        'contentRating[]': contentRatings,
-        'includes[]': ['cover_art'],
-      };
+    return cache.getOrSet(cacheKey, async () => {
+      await rateLimit();
+      
+      const url = `${this.baseUrl}/manga`;
+      const params = new URLSearchParams();
+      params.append('title', query);
+      params.append('limit', Math.min(limit, 100).toString()); // MangaDex max limit is 100
+      params.append('offset', ((page - 1) * limit).toString());
+      params.append('order[relevance]', 'desc');
 
-      // Execute search
-      const response = await this.http.get<MangaDexSearchResponse>('/manga', {
-        params,
-        cacheTtl: 1000 * 60 * 15, // 15 minutes
-        retries: 2,
-        timeout: 10000,
+      const contentRatings = await this.getContentRatings();
+      contentRatings.forEach(rating => {
+        params.append('contentRating[]', rating);
       });
 
-      if (!response.data) return [];
+      ['cover_art', 'author', 'artist'].forEach(include => {
+        params.append('includes[]', include);
+      });
 
-      // Process results in parallel
-      const results = await Promise.all(
-        response.data.map(async (manga) => {
-          try {
-            // Check if it's a one-shot first (faster than checking chapters)
-            const tags = manga.attributes.tags ?? [];
-            const isOneShot = tags.some(tag => {
-              const nameMap = tag.attributes?.name ?? {};
-              const englishName = typeof nameMap.en === 'string'
-                ? nameMap.en
-                : Object.values(nameMap).find((value): value is string => typeof value === 'string');
-              if (!englishName) return false;
-              const normalized = englishName.toLowerCase();
-              return normalized === 'one-shot' || normalized === 'oneshot' || normalized === 'one shot';
-            });
-
-            // Only check chapters if it's not a one-shot
-            if (!isOneShot) {
-              const feedResponse = await this.http.get<MangaDexChapterFeedResponse>(
-                `/manga/${manga.id}/feed`,
-                {
-                  params: {
-                    limit: 1,
-                    offset: 0,
-                    'translatedLanguage[]': ['en'],
-                    'contentRating[]': contentRatings,
-                  },
-                  cacheTtl: 1000 * 60 * 5, // 5 minutes
-                  retries: 1,
-                  timeout: 5000,
-                }
-              );
-              if (!feedResponse.data?.length) return null;
-            }
-
-            return this.mapMangaResult(manga);
-          } catch (e) {
-            console.error(`Error processing manga ${manga.id}:`, e);
-            return null;
+      try {
+        const response = await FastHttpClient.get<MangaDexSearchResponse>(`${url}?${params}`, {
+          timeout: 10000, // 10 second timeout
+          retries: 2, // Retry failed requests
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
           }
-        })
-      );
-
-      return results.filter((result): result is MangaSearchResult => result !== null);
-    } catch (error) {
-      console.error('MangaDex search error:', error);
-      return [];
-    }
+        });
+        
+        if (!response?.data) {
+          return [];
+        }
+        
+        return response.data.map(item => this.mapMangaResult(item));
+      } catch (error) {
+        console.error(`MangaDex search failed for "${query}":`, error);
+        throw new Error(`Failed to search manga: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }, 30 * 60 * 1000); // Cache for 30 minutes
   }
 
-  async getMangaDetails(id: string): Promise<Manga | null> {
-    try {
-      // Fetch manga details and chapters in parallel
-      const [mangaResponse, chaptersResponse] = await Promise.all([
-        this.http.get<MangaDexMangaDetailResponse>(
-          `/manga/${id}`,
-          {
-            params: {
-              'includes[]': ['cover_art', 'author', 'artist'],
-            },
-            cacheTtl: 1000 * 60 * 30, // 30 minutes
-            retries: 2,
-            timeout: 10000,
+  async getMangaDetails(id: string): Promise<Manga> {
+    const cacheKey = `mangadex:details:${id}`;
+    
+    return cache.getOrSet(cacheKey, async () => {
+      await rateLimit();
+      
+      const url = `${this.baseUrl}/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`;
+
+      try {
+        const response = await FastHttpClient.get<MangaDexMangaDetailResponse>(url, {
+          timeout: 10000,
+          retries: 2,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
           }
-        ),
-        this.getChapters(id, 1, 1), // Just to get total chapters count
-      ]);
-
-      const manga = mangaResponse.data;
-      const coverArt = manga.relationships.find(r => r.type === 'cover_art');
-      const author = manga.relationships.find(r => r.type === 'author');
-      const artist = manga.relationships.find(r => r.type === 'artist');
-
-      return {
-        id: manga.id,
-        title: Object.values(manga.attributes.title)[0] ?? '',
-        description: Object.values(manga.attributes.description)[0] ?? '',
-        coverUrl: coverArt?.attributes?.fileName
-          ? `${this.coverBaseUrl}/${manga.id}/${coverArt.attributes.fileName}`
-          : '',
-        status: manga.attributes.status,
-        year: manga.attributes.year,
-        contentRating: manga.attributes.contentRating,
-        author: author?.attributes?.name,
-        artist: artist?.attributes?.name,
-        tags: (manga.attributes.tags ?? []).map(tag => ({
-          id: tag.id,
-          name: tag.attributes?.name?.en ?? ''
-        })) || [],
-        chapters: chaptersResponse.length,
-        lastUpdated: new Date(manga.attributes.updatedAt).toISOString()
-      };
-    } catch (error) {
-      console.error('Error fetching manga details:', error);
-      return null;
-    }
+        });
+        
+        if (!response?.data) {
+          throw new Error('No data returned from MangaDex');
+        }
+        
+        return this.mapManga(response.data);
+      } catch (error) {
+        console.error(`Failed to fetch manga details for ID ${id}:`, error);
+        throw new Error(`Failed to load manga details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }, 60 * 60 * 1000); // Cache for 1 hour
   }
 
   async getChapters(
@@ -237,33 +225,48 @@ export class MangaDexProvider extends BaseMangaProvider {
       contentRating?: string[];
     } = {}
   ): Promise<MangaChapter[]> {
+    await rateLimit();
+
     const offset = (page - 1) * limit;
     const contentRatings = options.contentRating || await this.getContentRatings();
     
     try {
-      const response = await this.http.get<MangaDexChapterFeedResponse>(
-        `/manga/${mangaId}/feed`,
-        {
-          params: {
-            limit: limit.toString(),
-            offset: offset.toString(),
-            'translatedLanguage[]': options.translatedLanguage || ['en'],
-            'contentRating[]': contentRatings,
-            'order[chapter]': 'desc',
-            'order[volume]': 'desc',
-            'includes[]': ['scanlation_group', 'user'],
-            'includeEmptyPages': '1',
-            'includeFuturePublishAt': '0',
-            'includeFutureUpdates': '1',
-            'includeExternalUrl': '0'
-          },
-          cacheTtl: 1000 * 60 * 15, // 15 minutes
-          retries: 3,
-          timeout: 15000,
+      const url = `${this.baseUrl}/manga/${mangaId}/feed`;
+      const params = new URLSearchParams();
+      params.append('limit', limit.toString());
+      params.append('offset', offset.toString());
+      params.append('order[chapter]', 'desc');
+      params.append('order[volume]', 'desc');
+      params.append('includeEmptyPages', '1');
+      params.append('includeFuturePublishAt', '0');
+      params.append('includeFutureUpdates', '1');
+      params.append('includeExternalUrl', '0');
+
+      // Handle array parameters
+      const translatedLangs = options.translatedLanguage || ['en'];
+      translatedLangs.forEach(lang => {
+        params.append('translatedLanguage[]', lang);
+      });
+
+      contentRatings.forEach(rating => {
+        params.append('contentRating[]', rating);
+      });
+
+      ['scanlation_group', 'user'].forEach(include => {
+        params.append('includes[]', include);
+      });
+
+      const response = await FastHttpClient.get<MangaDexChapterFeedResponse>(`${url}?${params}`, {
+        timeout: 15000,
+        retries: 3,
+        cacheTtl: 1000 * 60 * 15, // 15 minutes
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
         }
-      );
+      });
       
-      if (!response.data) {
+      if (!response?.data) {
         throw new Error('No data received from MangaDex API');
       }
       
@@ -275,9 +278,11 @@ export class MangaDexProvider extends BaseMangaProvider {
   }
 
   async getChapterImages(chapterId: string, quality: 'data' | 'dataSaver' = 'data'): Promise<MangaChapterImages | null> {
+    await rateLimit();
+
     try {
-      const chapterData = await this.http.get<MangaDexChapterImagesResponse>(
-        `/at-home/server/${chapterId}`,
+      const chapterData = await FastHttpClient.get<MangaDexChapterImagesResponse>(
+        `${this.baseUrl}/at-home/server/${chapterId}`,
         {
           cacheTtl: 1000 * 60 * 60, // 1 hour
           retries: 3,
@@ -285,7 +290,7 @@ export class MangaDexProvider extends BaseMangaProvider {
         }
       );
       
-      if (!chapterData || !chapterData.chapter) {
+      if (!chapterData?.chapter) {
         throw new Error('Invalid chapter data received');
       }
       
@@ -337,6 +342,32 @@ export class MangaDexProvider extends BaseMangaProvider {
       status: manga.attributes.status,
       provider: this.name
     };
+  }
+
+  private mapManga(manga: MangaDexMangaResponse): Manga {
+    const coverArt = manga.relationships.find(r => r.type === 'cover_art');
+    const coverFileName = coverArt?.attributes?.fileName || 'cover.jpg';
+    const author = manga.relationships.find(r => r.type === 'author')?.attributes?.name || 'Unknown';
+    const artist = manga.relationships.find(r => r.type === 'artist')?.attributes?.name || 'Unknown';
+    const tags = (manga.attributes.tags || []).map(tag => ({
+      id: tag.id,
+      name: Object.values(tag.attributes?.name || {})[0] || ''
+    }));
+
+    return {
+      id: manga.id,
+      title: Object.values(manga.attributes.title)[0] ?? '',
+      description: Object.values(manga.attributes.description)[0] ?? '',
+      coverUrl: coverArt ? `${this.coverBaseUrl}/${manga.id}/${coverFileName}` : '',
+      year: manga.attributes.year,
+      status: manga.attributes.status,
+      contentRating: manga.attributes.contentRating,
+      tags,
+      author,
+      artist,
+      lastUpdated: manga.attributes.updatedAt,
+      provider: this.name
+    } as Manga;
   }
 
   private mapChapter(chapter: MangaDexChapterResponse): MangaChapter {

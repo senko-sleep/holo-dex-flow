@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info, Play } from 'lucide-react';
 import { Anime, AnimeCharacter, ThemeSong } from '@/types/anime';
 import { animeApi } from '@/services/animeApi';
 import { AudioPlayer } from './AudioPlayer';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { WatchAnime } from './WatchAnime';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +27,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSong, setSelectedSong] = useState<ThemeSong | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showWatchDialog, setShowWatchDialog] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -115,15 +118,21 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 />
               </div>
               <div className="flex-1 space-y-6">
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-bold mb-2 gradient-text">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <h1 className="text-3xl font-bold tracking-tight">
                     {anime.title_english || anime.title}
                   </h1>
-                  {anime.title_english && (
-                    <p className="text-lg md:text-xl text-muted-foreground">{anime.title}</p>
-                  )}
+                  <Button 
+                    onClick={() => setShowWatchDialog(true)}
+                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    <Play className="h-4 w-4" />
+                    Watch Now
+                  </Button>
                 </div>
-
+                {anime.title_english && (
+                  <p className="text-lg md:text-xl text-muted-foreground">{anime.title}</p>
+                )}
                 {/* Primary Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {anime.score && (
@@ -528,6 +537,14 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
           )}
         </div>
       </DialogContent>
+      
+      <WatchAnime
+        isOpen={showWatchDialog}
+        onClose={() => setShowWatchDialog(false)}
+        animeTitle={anime.title_english || anime.title}
+        malId={anime.mal_id}
+        anilistId={anime.anilist_id}
+      />
     </Dialog>
   );
 };

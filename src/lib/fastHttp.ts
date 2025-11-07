@@ -1,24 +1,31 @@
 import { cache } from './cache';
 
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'HEAD';
 type RequestOptions = {
   headers?: Record<string, string>;
-  params?: Record<string, any>;
+  params?: Record<string, string | number | boolean | (string | number | boolean)[] | undefined>;
+  body?: BodyInit;
   cacheTtl?: number;
   retries?: number;
   timeout?: number;
 };
 
-const DEFAULT_OPTIONS: Required<RequestOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<RequestOptions, 'body'>> & { body: undefined } = {
   headers: {},
   params: {},
+  body: undefined,
   cacheTtl: 1000 * 60 * 15, // 15 minutes
   retries: 3,
   timeout: 10000, // 10 seconds
 };
 
-// Request deduplication cache
-const pendingRequests = new Map<string, Promise<any>>();
+// Request deduplication cache with type-safe storage for different response types
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+// Helper function to safely get a typed promise from the pending requests map
+function getPendingRequest<T>(key: string): Promise<T> | undefined {
+  return pendingRequests.get(key) as Promise<T> | undefined;
+}
 
 // Request queue for rate limiting
 const requestQueue: Array<() => Promise<void>> = [];
@@ -62,9 +69,11 @@ function queueRequest<T>(fn: () => Promise<T>): Promise<T> {
 export class FastHttpClient {
   private baseUrl: string;
   private defaultHeaders: Record<string, string>;
+  private useProxy: boolean;
   
-  constructor(baseURL: string, defaultHeaders: Record<string, string> = {}) {
+  constructor(baseURL: string, defaultHeaders: Record<string, string> = {}, useProxy: boolean = process.env.NODE_ENV === 'development') {
     this.baseUrl = baseURL.replace(/\/+$/, '');
+    this.useProxy = useProxy;
     this.defaultHeaders = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       'Accept': 'application/json, text/plain, */*',
@@ -73,28 +82,31 @@ export class FastHttpClient {
     };
   }
 
-  private async request<T>(
-    method: RequestMethod,
-    url: string,
-    options: RequestOptions = {}
-  ): Promise<T> {
-    const {
-      headers = {},
-      params = {},
-      cacheTtl = DEFAULT_OPTIONS.cacheTtl,
-      retries = DEFAULT_OPTIONS.retries,
-      timeout = DEFAULT_OPTIONS.timeout,
-    } = { ...DEFAULT_OPTIONS, ...options };
-
-    const cacheKey = `http:${this.baseUrl}${url}:${JSON.stringify(params)}`;
+  private async makeRequest<T>(method: RequestMethod, url: string, options: RequestOptions = {}): Promise<T> {
+    const { headers = {}, params = {}, body, cacheTtl, retries = 3, timeout = 10000 } = { ...DEFAULT_OPTIONS, ...options };
     
-    // Check cache first
-    const cached = cache.get<T>(cacheKey);
-    if (cached) return cached;
+    // Add CORS headers for MangaDex API
+    const corsHeaders = {
+      'Origin': window.location.origin,
+      'Referer': window.location.origin + '/',
+      ...headers
+    };
+    
+    const isGet = method === 'GET';
+    const cacheKey = `http:${method}:${this.baseUrl}${url}:${JSON.stringify(params)}`;
+    
+    // Check cache first for GET requests
+    if (isGet) {
+      const cached = cache.get<T>(cacheKey);
+      if (cached) return cached;
+    }
 
-    // Check for duplicate requests
-    if (pendingRequests.has(cacheKey)) {
-      return pendingRequests.get(cacheKey)!;
+    // Check for duplicate requests for GET
+    if (isGet) {
+      const pendingRequest = getPendingRequest<T>(cacheKey);
+      if (pendingRequest) {
+        return pendingRequest;
+      }
     }
 
     const controller = new AbortController();
@@ -102,23 +114,49 @@ export class FastHttpClient {
 
     const makeRequest = async (attempt = 0): Promise<T> => {
       try {
-        const queryString = Object.keys(params).length
-          ? `?${new URLSearchParams(params).toString()}`
-          : '';
+        const searchParams = new URLSearchParams();
+        for (const [key, value] of Object.entries(params)) {
+          if (value === undefined) continue;
+          if (Array.isArray(value)) {
+            value.forEach(v => searchParams.append(key, String(v)));
+          } else {
+            searchParams.append(key, String(value));
+          }
+        }
+        const queryString = searchParams.toString() ? `?${searchParams.toString()}` : '';
 
-        const fullUrl = `${this.baseUrl}${url}${queryString}`;
+        let fullUrl = `${this.baseUrl}${url}${queryString}`;
         
+        // Use CORS proxy in development if enabled and not a local request
+        if (this.useProxy && !fullUrl.includes('localhost') && !fullUrl.includes('127.0.0.1')) {
+          fullUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`;
+        }
+        
+        // Fix for TypeScript error by explicitly handling the HEAD method case
+        const isGetOrHead = method === 'GET' || method === 'HEAD';
         const response = await fetch(fullUrl, {
           method,
           headers: {
             ...this.defaultHeaders,
-            ...headers,
+            ...corsHeaders,
           },
-          signal: controller.signal,
+          body: isGetOrHead ? undefined : body,
+          mode: 'cors',
+          credentials: 'omit',
         });
 
         clearTimeout(timeoutId);
 
+        // Handle proxy response
+        const responseData = response;
+        if (this.useProxy && !fullUrl.includes('localhost') && !fullUrl.includes('127.0.0.1')) {
+          const proxyResponse = await response.json();
+          if (proxyResponse.contents) {
+            return JSON.parse(proxyResponse.contents);
+          }
+          throw new Error(proxyResponse.message || 'Error from proxy');
+        }
+        
         if (!response.ok) {
           if (response.status === 429 && attempt < retries) {
             const retryAfter = parseInt(response.headers.get('retry-after') || '1', 10) * 1000;
@@ -130,8 +168,8 @@ export class FastHttpClient {
 
         const data = await response.json();
         
-        // Cache successful responses
-        if (cacheTtl > 0) {
+        // Cache successful GET responses
+        if (isGet && cacheTtl > 0) {
           cache.set(cacheKey, data, cacheTtl);
         }
         
@@ -145,22 +183,26 @@ export class FastHttpClient {
         
         throw error;
       } finally {
-        pendingRequests.delete(cacheKey);
+        if (isGet) {
+          pendingRequests.delete(cacheKey);
+        }
       }
     };
 
-    const requestPromise = queueRequest(makeRequest);
-    pendingRequests.set(cacheKey, requestPromise);
+    const requestPromise = queueRequest(() => makeRequest());
+    if (isGet) {
+      pendingRequests.set(cacheKey, requestPromise);
+    }
     
     return requestPromise;
   }
 
   async get<T>(url: string, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
-    return this.request<T>('GET', url, options);
+    return this.makeRequest<T>('GET', url, options);
   }
 
-  async post<T>(url: string, body: any, options: RequestOptions = {}): Promise<T> {
-    return this.request<T>('POST', url, {
+  async post<T>(url: string, body: unknown, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
+    return this.makeRequest<T>('POST', url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -177,6 +219,35 @@ export class FastHttpClient {
 
   // Clear cache for a specific URL or all URLs starting with a prefix
   clearCache(urlPrefix: string = ''): void {
+    // @ts-expect-error - cache.clear() is dynamically typed and TypeScript can't infer the correct type
     cache.clear(`http:${this.baseUrl}${urlPrefix}`);
   }
+
+  // Static methods that use the default instance
+  static get<T>(url: string, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
+    return defaultHttpClient.get<T>(url, options);
+  }
+
+  static post<T>(url: string, body: unknown, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
+    return defaultHttpClient.post<T>(url, body, options);
+  }
+
+  static request<T>(
+    method: RequestMethod,
+    url: string,
+    options: RequestOptions = {}
+  ): Promise<T> {
+    return defaultHttpClient.makeRequest<T>(method, url, options);
+  }
+
+  static batch<T>(requests: Array<() => Promise<T>>): Promise<T[]> {
+    return defaultHttpClient.batch(requests);
+  }
+
+  static clearCache(urlPrefix: string = ''): void {
+    defaultHttpClient.clearCache(urlPrefix);
+  }
 }
+
+// Default instance for static methods
+const defaultHttpClient = new FastHttpClient('');

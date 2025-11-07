@@ -26,6 +26,7 @@ export interface Manga {
   language?: string;
   parodies?: string[];
   categories?: string[];
+  provider?: string;
 }
 
 export interface MangaChapter {
@@ -43,11 +44,10 @@ export interface MangaChapter {
 }
 
 export interface MangaChapterImagesMeta {
-  quality?: string;
-  totalPages?: number;
-  serverUrl?: string;
-  timestamp?: string;
-  [key: string]: any;
+  quality: 'data' | 'dataSaver';
+  totalPages: number;
+  serverUrl: string;
+  timestamp: string;
 }
 
 export interface MangaChapterImages {

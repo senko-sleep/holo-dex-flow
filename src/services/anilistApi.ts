@@ -408,7 +408,7 @@ export const anilistApi = {
         page,
         perPage,
         genre_in: filters?.genres?.length ? filters.genres : undefined,
-        tag_in: filters?.tags?.length ? filters.tags.map(t => typeof t === 'string' ? parseInt(t, 10) : t) : undefined,
+        tag_in: filters?.tags?.length ? filters.tags.map(String) : undefined,
         format_in: filters?.format?.length ? filters.format : undefined,
         status_in: filters?.status?.length ? filters.status : undefined,
         source_in: ['MANGA', 'LIGHT_NOVEL'] // Only show anime based on manga or light novels
@@ -607,7 +607,7 @@ export const anilistApi = {
         page,
         perPage,
         genre_in: filters?.genres?.length ? filters.genres : undefined,
-        tag_in: filters?.tags?.length ? filters.tags.map(t => typeof t === 'string' ? parseInt(t, 10) : t) : undefined,
+        tag_in: filters?.tags?.length ? filters.tags.map(String) : undefined,
         format_in: filters?.format?.length ? filters.format : undefined,
         status_in: filters?.status?.length ? filters.status : undefined
       };
