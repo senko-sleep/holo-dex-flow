@@ -63,7 +63,13 @@ const MangaDetail = () => {
   }, [mangaId]);
 
   const handleChapterClick = (chapterId: string) => {
-    navigate(`/reader/${chapterId}`);
+    // Store manga ID for the chapter so we can navigate back and between chapters
+    if (mangaId) {
+      localStorage.setItem(`chapter_manga_${chapterId}`, mangaId);
+      navigate(`/reader/${chapterId}?mangaId=${mangaId}`);
+    } else {
+      navigate(`/reader/${chapterId}`);
+    }
   };
 
   const handleWarningAccept = () => {

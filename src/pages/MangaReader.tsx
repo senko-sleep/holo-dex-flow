@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MangaChapterImages, MangaChapter } from '@/types/manga';
 import { mangadexApi } from '@/services/mangadexApi';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,8 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { toast } from 'sonner';
 
 const MangaReader = () => {
-  const { chapterId, mangaId } = useParams<{ chapterId: string; mangaId?: string }>();
+  const { chapterId } = useParams<{ chapterId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout>();
@@ -23,6 +24,7 @@ const MangaReader = () => {
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [fitMode, setFitMode] = useState<'width' | 'height' | 'both'>('both');
+  const [mangaId, setMangaId] = useState<string | null>(null);
 
   // Load chapter data
   const loadChapter = useCallback(async (id: string) => {
@@ -42,9 +44,11 @@ const MangaReader = () => {
       const pageToSet = savedPage ? Math.min(parseInt(savedPage, 10), chapterImages.chapter.data.length - 1) : 0;
       setCurrentPage(pageToSet);
       
-      // Store last read chapter
-      if (mangaId) {
-        localStorage.setItem(`last_read_${mangaId}`, id);
+      // Try to get mangaId from localStorage if not in URL
+      const storedMangaId = localStorage.getItem(`chapter_manga_${id}`);
+      if (storedMangaId) {
+        setMangaId(storedMangaId);
+        localStorage.setItem(`last_read_${storedMangaId}`, id);
       }
     } catch (error) {
       console.error('Error loading chapter:', error);
@@ -52,7 +56,7 @@ const MangaReader = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [mangaId]);
+  }, []);
   
   // Load available chapters
   const loadChapters = useCallback(async () => {
@@ -69,14 +73,22 @@ const MangaReader = () => {
   useEffect(() => {
     applySeasonalTheme();
     
+    // Get mangaId from URL params if available
+    const urlMangaId = searchParams.get('mangaId');
+    if (urlMangaId) {
+      setMangaId(urlMangaId);
+    }
+    
     if (chapterId) {
       loadChapter(chapterId);
     }
-    
+  }, [chapterId, searchParams, loadChapter]);
+
+  useEffect(() => {
     if (mangaId) {
       loadChapters();
     }
-  }, [chapterId, mangaId, loadChapter, loadChapters]);
+  }, [mangaId, loadChapters]);
 
   const getImageUrl = useCallback((index: number) => {
     if (!images) return '';
@@ -102,7 +114,8 @@ const MangaReader = () => {
       const currentIndex = chapters.findIndex(ch => ch.id === chapterId);
       if (currentIndex > 0) {
         const nextChapter = chapters[currentIndex - 1];
-        navigate(`/manga/read/${mangaId}/${nextChapter.id}`);
+        const url = mangaId ? `/reader/${nextChapter.id}?mangaId=${mangaId}` : `/reader/${nextChapter.id}`;
+        navigate(url);
       }
     }
   }, [images, currentPage, chapterId, chapters, navigate, mangaId, goToPage]);
@@ -114,7 +127,8 @@ const MangaReader = () => {
       const currentIndex = chapters.findIndex(ch => ch.id === chapterId);
       if (currentIndex < chapters.length - 1) {
         const prevChapter = chapters[currentIndex + 1];
-        navigate(`/manga/read/${mangaId}/${prevChapter.id}`);
+        const url = mangaId ? `/reader/${prevChapter.id}?mangaId=${mangaId}` : `/reader/${prevChapter.id}`;
+        navigate(url);
       }
     }
   }, [currentPage, chapterId, chapters, navigate, mangaId, goToPage]);
@@ -157,7 +171,8 @@ const MangaReader = () => {
   }, []);
 
   const handleChapterSelect = (chapterId: string) => {
-    navigate(`/manga/read/${mangaId}/${chapterId}`);
+    const url = mangaId ? `/reader/${chapterId}?mangaId=${mangaId}` : `/reader/${chapterId}`;
+    navigate(url);
     setShowSettings(false);
   };
 
