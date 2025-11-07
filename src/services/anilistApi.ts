@@ -87,6 +87,7 @@ interface AniListVoiceActor {
   name: AniListCharacterName;
   image: AniListCharacterImage;
   language: string;
+  favourites?: number;
 }
 
 interface AniListCharacterEdge {
@@ -528,6 +529,7 @@ export const anilistApi = {
         images: { jpg: { image_url?: string } };
       };
       language: string;
+      favorites?: number;
     }>;
   }>> {
     const query = `
@@ -550,7 +552,7 @@ export const anilistApi = {
                 siteUrl
                 description
               }
-              voiceActors(language: JAPANESE, sort: FAVOURITES_DESC) {
+              voiceActors(sort: FAVOURITES_DESC) {
                 id
                 name {
                   full
@@ -561,6 +563,7 @@ export const anilistApi = {
                   medium
                 }
                 language
+                favourites
               }
             }
           }
@@ -584,7 +587,8 @@ export const anilistApi = {
               },
             },
           },
-          language: va.language === 'JAPANESE' ? 'Japanese' : va.language,
+          language: va.language === 'JAPANESE' ? 'Japanese' : va.language === 'ENGLISH' ? 'English' : va.language,
+          favorites: va.favourites,
         })),
       }));
     } catch (error) {

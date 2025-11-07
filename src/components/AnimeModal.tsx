@@ -419,11 +419,13 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
             </div>
           ) : error ? null : characters.length > 0 ? (
             <div className="bg-card rounded-2xl p-6 shadow-md animate-slide-up">
-              <div className="flex items-center gap-2 mb-6">
-                <Users className="h-6 w-6 text-primary" />
-                <h2 className="text-2xl font-bold">Characters & Voice Actors</h2>
-                <span className="text-sm text-muted-foreground ml-auto">
-                  Sorted by popularity
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-6">
+                <div className="flex items-center gap-2">
+                  <Users className="h-6 w-6 text-primary" />
+                  <h2 className="text-2xl font-bold">Characters & Voice Actors</h2>
+                </div>
+                <span className="text-sm text-muted-foreground sm:ml-auto">
+                  Most popular characters • Sub & Dub VAs
                 </span>
               </div>
               <div className="grid gap-4">
@@ -468,6 +470,11 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                                 <p className="font-semibold text-foreground text-sm truncate max-w-32">
                                   {japaneseVA.person.name}
                                 </p>
+                                {japaneseVA.favorites && japaneseVA.favorites > 0 && (
+                                  <p className="text-xs text-accent font-medium mt-1">
+                                    ❤️ {japaneseVA.favorites.toLocaleString()}
+                                  </p>
+                                )}
                               </div>
                               <img
                                 src={japaneseVA.person.images.jpg.image_url}
@@ -486,6 +493,11 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                                 <p className="font-semibold text-foreground text-sm truncate max-w-32">
                                   {englishVA.person.name}
                                 </p>
+                                {englishVA.favorites && englishVA.favorites > 0 && (
+                                  <p className="text-xs text-accent font-medium mt-1">
+                                    ❤️ {englishVA.favorites.toLocaleString()}
+                                  </p>
+                                )}
                               </div>
                               <img
                                 src={englishVA.person.images.jpg.image_url}

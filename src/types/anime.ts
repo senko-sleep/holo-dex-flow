@@ -43,26 +43,27 @@ export interface Anime {
 export interface AnimeCharacter {
   character: {
     mal_id: number;
-    name: string;
+    name?: string;
     images: {
       jpg: {
-        image_url: string;
+        image_url?: string;
       };
     };
   };
   role: string;
-  favorites: number;
+  favorites?: number;
   voice_actors?: Array<{
     person: {
       mal_id: number;
       name: string;
       images: {
         jpg: {
-          image_url: string;
+          image_url?: string;
         };
       };
     };
     language: string;
+    favorites?: number;
   }>;
 }
 
