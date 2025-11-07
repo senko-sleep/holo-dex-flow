@@ -27,8 +27,7 @@ export const animeApi = {
   // Get top anime sorted by rating (using AniList)
   async getTopAnime(page = 1, limit = 24): Promise<Anime[]> {
     try {
-      // AniList uses includeAdult flag - set to true for comprehensive results
-      return await anilistApi.getTopAnime(page, limit, true);
+      return await anilistApi.getTopAnime(page, limit);
     } catch (error) {
       console.error('Error fetching top anime:', error);
       return [];
@@ -45,13 +44,12 @@ export const animeApi = {
     }
   },
 
-  // Search anime (using AniList with adult content support)
+  // Search anime (using AniList)
   async searchAnime(query: string, limit = 20): Promise<Anime[]> {
     if (!query.trim()) return [];
     
     try {
-      // Set includeAdult to true to search all anime including mature content
-      return await anilistApi.searchAnime(query, limit, true);
+      return await anilistApi.searchAnime(query, limit);
     } catch (error) {
       console.error('Error searching anime:', error);
       return [];

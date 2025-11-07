@@ -98,10 +98,11 @@ interface AniListCharacterEdge {
 
 interface TransformedAnime {
   mal_id: number;
+  anilist_id?: number;
   url: string;
   images: {
     jpg: {
-      image_url?: string;
+      image_url: string;
       small_image_url?: string;
       large_image_url?: string;
     };
@@ -142,10 +143,10 @@ interface TransformedCharacter {
   url: string;
   images: {
     jpg: {
-      image_url?: string;
+      image_url: string;
     };
   };
-  name?: string;
+  name: string;
   name_kanji?: string;
   favorites?: number;
   about?: string;
@@ -187,10 +188,11 @@ async function graphqlRequest<T>(query: string, variables: Record<string, unknow
 function transformAnime(anilistAnime: AniListMedia): TransformedAnime {
   return {
     mal_id: anilistAnime.idMal || anilistAnime.id,
+    anilist_id: anilistAnime.id, // Store AniList ID for character fetching
     url: anilistAnime.siteUrl,
     images: {
       jpg: {
-        image_url: anilistAnime.coverImage?.large || anilistAnime.coverImage?.medium,
+        image_url: anilistAnime.coverImage?.large || anilistAnime.coverImage?.medium || '/placeholder.svg',
         small_image_url: anilistAnime.coverImage?.medium,
         large_image_url: anilistAnime.coverImage?.extraLarge || anilistAnime.coverImage?.large,
       },
@@ -249,10 +251,10 @@ function transformCharacter(anilistChar: AniListCharacter): TransformedCharacter
     url: anilistChar.siteUrl,
     images: {
       jpg: {
-        image_url: anilistChar.image?.large || anilistChar.image?.medium,
+        image_url: anilistChar.image?.large || anilistChar.image?.medium || '/placeholder.svg',
       },
     },
-    name: anilistChar.name?.full || anilistChar.name?.native,
+    name: anilistChar.name?.full || anilistChar.name?.native || 'Unknown',
     name_kanji: anilistChar.name?.native,
     favorites: anilistChar.favourites,
     about: anilistChar.description?.replace(/<[^>]*>/g, ''),
@@ -261,15 +263,15 @@ function transformCharacter(anilistChar: AniListCharacter): TransformedCharacter
 
 export const anilistApi = {
   // Get top anime
-  async getTopAnime(page = 1, perPage = 24, includeAdult = true): Promise<TransformedAnime[]> {
-    const cacheKey = `anilist_top_anime_${page}_${perPage}_${includeAdult}`;
+  async getTopAnime(page = 1, perPage = 24): Promise<TransformedAnime[]> {
+    const cacheKey = `anilist_top_anime_v2_${page}_${perPage}`; // v2 to bust old cache
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
     const query = `
-      query ($page: Int, $perPage: Int, $isAdult: Boolean) {
+      query ($page: Int, $perPage: Int) {
         Page(page: $page, perPage: $perPage) {
-          media(sort: SCORE_DESC, type: ANIME, isAdult: $isAdult) {
+          media(sort: SCORE_DESC, type: ANIME) {
             id
             idMal
             title {
@@ -322,7 +324,7 @@ export const anilistApi = {
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, { page, perPage, isAdult: includeAdult });
+      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, { page, perPage });
       const result = data.Page.media.map(transformAnime);
       cache.set(cacheKey, result, 10 * 60 * 1000);
       return result;
@@ -334,7 +336,7 @@ export const anilistApi = {
 
   // Get current season anime
   async getCurrentSeasonAnime(perPage = 12): Promise<TransformedAnime[]> {
-    const cacheKey = `anilist_seasonal_anime_${perPage}`;
+    const cacheKey = `anilist_seasonal_anime_v2_${perPage}`; // v2 to bust old cache
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
@@ -398,17 +400,17 @@ export const anilistApi = {
   },
 
   // Search anime
-  async searchAnime(query: string, perPage = 20, includeAdult = true): Promise<TransformedAnime[]> {
+  async searchAnime(query: string, perPage = 20): Promise<TransformedAnime[]> {
     if (!query.trim()) return [];
 
-    const cacheKey = `anilist_search_${query}_${perPage}_${includeAdult}`;
+    const cacheKey = `anilist_search_v2_${query}_${perPage}`; // v2 to bust old cache
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
     const graphqlQuery = `
-      query ($search: String, $perPage: Int, $isAdult: Boolean) {
+      query ($search: String, $perPage: Int) {
         Page(page: 1, perPage: $perPage) {
-          media(search: $search, type: ANIME, sort: SEARCH_MATCH, isAdult: $isAdult) {
+          media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
             id
             idMal
             title {
@@ -439,7 +441,7 @@ export const anilistApi = {
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(graphqlQuery, { search: query, perPage, isAdult: includeAdult });
+      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(graphqlQuery, { search: query, perPage });
       const result = data.Page.media.map(transformAnime);
       cache.set(cacheKey, result, 5 * 60 * 1000);
       return result;
@@ -599,7 +601,7 @@ export const anilistApi = {
 
   // Get top characters
   async getTopCharacters(page = 1, perPage = 50): Promise<TransformedCharacter[]> {
-    const cacheKey = `anilist_top_characters_${page}_${perPage}`;
+    const cacheKey = `anilist_top_characters_v2_${page}_${perPage}`; // v2 to bust old cache
     const cached = cache.get<TransformedCharacter[]>(cacheKey);
     if (cached) return cached;
 

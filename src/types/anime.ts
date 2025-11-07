@@ -1,5 +1,6 @@
 export interface Anime {
   mal_id: number;
+  anilist_id?: number; // AniList ID for API calls
   title: string;
   title_english?: string;
   type?: string;            

@@ -54,12 +54,14 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
       setIsLoading(true);
       setError(null);
       try {
+        // Use anilist_id if available, otherwise fall back to mal_id
+        const animeId = anime.anilist_id || anime.mal_id;
         const [charData, themeData] = await Promise.all([
-          animeApi.getAnimeCharacters(anime.mal_id),
+          animeApi.getAnimeCharacters(animeId),
           animeApi.getThemeSongs(anime.title),
         ]);
         // Sort characters by popularity (favorites count descending)
-        const sortedChars = charData.sort((a, b) => b.favorites - a.favorites);
+        const sortedChars = charData.sort((a, b) => (b.favorites || 0) - (a.favorites || 0));
         setCharacters(sortedChars);
         setThemeSongs(themeData);
       } catch (error) {
