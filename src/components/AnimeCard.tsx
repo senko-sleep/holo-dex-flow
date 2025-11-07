@@ -1,5 +1,7 @@
 import { Anime } from '@/types/anime';
-import { Star } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Star, Play } from 'lucide-react';
 
 interface AnimeCardProps {
   anime: Anime;
@@ -8,36 +10,54 @@ interface AnimeCardProps {
 
 export const AnimeCard = ({ anime, onClick }: AnimeCardProps) => {
   return (
-    <button
+    <Card
+      className="group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20 hover:scale-105 hover:-translate-y-1 animate-scale-in border-border/50 hover:border-primary/50"
       onClick={onClick}
-      className="group relative bg-card rounded-xl overflow-hidden shadow-card hover:shadow-glow transition-all duration-300 hover:scale-105 cursor-pointer animate-scale-in"
     >
-      <div className="aspect-[2/3] relative overflow-hidden">
+      <div className="aspect-[2/3] relative overflow-hidden bg-secondary/20">
         <img
-          src={anime.images.jpg.large_image_url || anime.images.jpg.image_url}
+          src={anime.images.jpg.large_image_url}
           alt={anime.title}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent opacity-90" />
         
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-300" />
+        
+        {/* Score badge - always visible */}
         {anime.score && (
-          <div className="absolute top-3 right-3 bg-primary/90 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1 text-sm font-semibold">
-            <Star className="h-3.5 w-3.5 fill-current" />
-            {anime.score}
+          <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-sm border border-yellow-500/30">
+            <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+            <span className="text-white text-xs font-bold">{anime.score.toFixed(1)}</span>
           </div>
         )}
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <h3 className="font-bold text-foreground text-lg mb-1 line-clamp-2 group-hover:text-primary transition-colors">
-          {anime.title_english || anime.title}
-        </h3>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {anime.episodes && <span>{anime.episodes} episodes</span>}
-          {anime.year && <span>• {anime.year}</span>}
+        
+        {/* Type badge */}
+        <Badge className="absolute top-3 left-3 bg-primary/90 backdrop-blur-sm border-0">
+          {anime.type || 'TV'}
+        </Badge>
+        
+        {/* Hover info */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+          <div className="flex items-center gap-2 text-white text-sm mb-2">
+            <Play className="h-4 w-4" />
+            <span className="font-medium">Watch Now</span>
+          </div>
+          {anime.episodes && (
+            <p className="text-xs text-white/80">{anime.episodes} episodes</p>
+          )}
         </div>
       </div>
-    </button>
+      
+      <CardContent className="p-3 bg-card/50 backdrop-blur-sm">
+        <h3 className="font-semibold text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+          {anime.title}
+        </h3>
+        <p className="text-xs text-muted-foreground line-clamp-1">
+          {anime.year || 'N/A'}
+        </p>
+      </CardContent>
+    </Card>
   );
 };

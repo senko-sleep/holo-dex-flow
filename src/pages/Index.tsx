@@ -1,29 +1,58 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Anime } from '@/types/anime';
+import { Manga } from '@/types/manga';
 import { animeApi } from '@/services/animeApi';
-import { SearchBar } from '@/components/SearchBar';
+import { mangadexApi } from '@/services/mangadexApi';
+import { Navigation } from '@/components/Navigation';
+import { FeaturedSlider } from '@/components/FeaturedSlider';
+import { QuickAccess } from '@/components/QuickAccess';
 import { AnimeCard } from '@/components/AnimeCard';
+import { MangaCard } from '@/components/MangaCard';
 import { AnimeModal } from '@/components/AnimeModal';
-import { Sparkles, TrendingUp } from 'lucide-react';
+import { LoadingGrid } from '@/components/LoadingGrid';
+import { Sparkles, TrendingUp, Flame } from 'lucide-react';
 
 const Index = () => {
+  const navigate = useNavigate();
   const [topAnime, setTopAnime] = useState<Anime[]>([]);
   const [seasonalAnime, setSeasonalAnime] = useState<Anime[]>([]);
+  const [featuredAnime, setFeaturedAnime] = useState<Anime[]>([]);
+  const [hottestManga, setHottestManga] = useState<Manga[]>([]);
   const [selectedAnime, setSelectedAnime] = useState<Anime | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Get current season
+  const getCurrentSeason = () => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-11
+    const year = now.getFullYear();
+    
+    let season = '';
+    if (month >= 0 && month <= 2) season = 'Winter';
+    else if (month >= 3 && month <= 5) season = 'Spring';
+    else if (month >= 6 && month <= 8) season = 'Summer';
+    else season = 'Fall';
+    
+    return `${season} ${year}`;
+  };
 
   useEffect(() => {
     const loadAnime = async () => {
       setIsLoading(true);
       try {
-        const [top, seasonal] = await Promise.all([
+        const [top, seasonal, featured, manga] = await Promise.all([
           animeApi.getTopAnime(1, 24),
           animeApi.getCurrentSeasonAnime(),
+          animeApi.getTopAnime(1, 10),
+          mangadexApi.searchManga('', { order: { rating: 'desc' } }, 24, 0),
         ]);
         setTopAnime(top);
         setSeasonalAnime(seasonal);
+        setFeaturedAnime(featured);
+        setHottestManga(manga);
       } catch (error) {
-        console.error('Error loading anime:', error);
+        console.error('Error loading content:', error);
       } finally {
         setIsLoading(false);
       }
@@ -34,35 +63,36 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <header className="relative overflow-hidden bg-gradient-hero py-16 px-4 mb-12">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC40Ij48cGF0aCBkPSJNMzYgMzRjMC0yLjIxLTEuNzktNC00LTRzLTQgMS43OS00IDQgMS43OSA0IDQgNCA0LTEuNzkgNC00em0wLTEwYzAtMi4yMS0xLjc5LTQtNC00cy00IDEuNzktNCA0IDEuNzkgNCA0IDQgNC0xLjc5IDQtNHptMC0xMGMwLTIuMjEtMS43OS00LTQtNHMtNCAxLjc5LTQgNCAxLjc5IDQgNCA0IDQtMS43OSA0LTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] animate-pulse"></div>
-        </div>
-        <div className="relative max-w-7xl mx-auto text-center">
-          <h1 className="text-5xl md:text-7xl font-bold mb-4 text-white animate-fade-in">
-            AnimeDex<span className="text-accent">+</span>
-          </h1>
-          <p className="text-xl md:text-2xl text-white/90 mb-8 animate-slide-up">
-            Discover, explore, and enjoy the world of anime
-          </p>
-          <SearchBar onAnimeSelect={setSelectedAnime} />
-        </div>
-      </header>
+      <Navigation />
+      
+      {/* Featured Slider */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {isLoading ? (
+          <div className="w-full h-[500px] md:h-[600px] bg-secondary/20 rounded-2xl animate-pulse" />
+        ) : (
+          <FeaturedSlider items={featuredAnime} onItemClick={setSelectedAnime} />
+        )}
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 pb-12">
+      {/* Quick Access */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <QuickAccess />
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 py-12">
         {/* Current Season */}
-        <section className="mb-16">
-          <div className="flex items-center gap-3 mb-6">
-            <Sparkles className="h-7 w-7 text-primary" />
-            <h2 className="text-3xl font-bold text-foreground">Current Season</h2>
+        <section className="mb-20 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <Sparkles className="h-7 w-7 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold gradient-text">{getCurrentSeason()}</h2>
+              <p className="text-sm text-muted-foreground">Watch the hottest anime airing now</p>
+            </div>
           </div>
           {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className="aspect-[2/3] bg-card rounded-xl animate-pulse" />
-              ))}
-            </div>
+            <LoadingGrid count={12} type="card" />
           ) : seasonalAnime && seasonalAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
               {seasonalAnime.map((anime) => (
@@ -80,18 +110,49 @@ const Index = () => {
           )}
         </section>
 
-        {/* Top Rated */}
-        <section>
-          <div className="flex items-center gap-3 mb-6">
-            <TrendingUp className="h-7 w-7 text-primary" />
-            <h2 className="text-3xl font-bold text-foreground">Top Rated Anime</h2>
+        {/* Hottest Manga */}
+        <section className="mb-20 animate-fade-in" style={{ animationDelay: '0.35s' }}>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2 bg-destructive/10 rounded-xl">
+              <Flame className="h-7 w-7 text-destructive" />
+            </div>
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground">Hottest Manga</h2>
+              <p className="text-sm text-muted-foreground">Top rated manga you can't miss</p>
+            </div>
           </div>
           {isLoading ? (
+            <LoadingGrid count={24} type="card" />
+          ) : hottestManga && hottestManga.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {[...Array(24)].map((_, i) => (
-                <div key={i} className="aspect-[2/3] bg-card rounded-xl animate-pulse" />
+              {hottestManga.map((manga) => (
+                <MangaCard
+                  key={manga.id}
+                  manga={manga}
+                  onClick={() => navigate(`/manga/${manga.id}`)}
+                />
               ))}
             </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No manga found. Please check your connection and try refreshing.</p>
+            </div>
+          )}
+        </section>
+
+        {/* Top Rated */}
+        <section className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2 bg-accent/10 rounded-xl">
+              <TrendingUp className="h-7 w-7 text-accent" />
+            </div>
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground">Top Rated Anime</h2>
+              <p className="text-sm text-muted-foreground">The best anime ever created</p>
+            </div>
+          </div>
+          {isLoading ? (
+            <LoadingGrid count={24} type="card" />
           ) : topAnime && topAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
               {topAnime.map((anime) => (

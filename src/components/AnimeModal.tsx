@@ -1,8 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Star, Calendar, Users, Music } from 'lucide-react';
+import { X, Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
 import { Anime, AnimeCharacter, ThemeSong } from '@/types/anime';
 import { animeApi } from '@/services/animeApi';
 import { AudioPlayer } from './AudioPlayer';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AnimeModalProps {
   anime: Anime;
@@ -107,52 +110,241 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                   loading="lazy"
                 />
               </div>
-              <div className="flex-1">
-                <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">
-                  {anime.title_english || anime.title}
-                </h1>
-                {anime.title_english && (
-                  <p className="text-lg md:text-xl text-muted-foreground mb-4">{anime.title}</p>
-                )}
-                
-                <div className="flex flex-wrap gap-3 mb-6">
+              <div className="flex-1 space-y-6">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold mb-2 gradient-text">
+                    {anime.title_english || anime.title}
+                  </h1>
+                  {anime.title_english && (
+                    <p className="text-lg md:text-xl text-muted-foreground">{anime.title}</p>
+                  )}
+                </div>
+
+                {/* Primary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {anime.score && (
-                    <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full transition-colors duration-200 hover:bg-primary/30">
-                      <Star className="h-5 w-5 fill-primary text-primary" />
-                      <span className="font-bold text-lg">{anime.score}</span>
+                    <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-center hover:bg-primary/20 transition-colors">
+                      <Star className="h-5 w-5 fill-primary text-primary mx-auto mb-1" />
+                      <div className="font-bold text-xl text-primary">{anime.score}</div>
+                      <div className="text-xs text-muted-foreground">Score</div>
+                    </div>
+                  )}
+                  {anime.type && (
+                    <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 text-center hover:bg-accent/20 transition-colors">
+                      {anime.type === 'TV' ? <Tv className="h-5 w-5 text-accent mx-auto mb-1" /> : 
+                       anime.type === 'Movie' ? <Film className="h-5 w-5 text-accent mx-auto mb-1" /> :
+                       <PlayCircle className="h-5 w-5 text-accent mx-auto mb-1" />}
+                      <div className="font-bold text-accent">{anime.type}</div>
+                      <div className="text-xs text-muted-foreground">Type</div>
                     </div>
                   )}
                   {anime.episodes && (
-                    <div className="flex items-center gap-2 bg-secondary px-4 py-2 rounded-full transition-colors duration-200 hover:bg-secondary/80">
-                      <span className="font-semibold">{anime.episodes} Episodes</span>
+                    <div className="bg-secondary/50 border border-border rounded-xl p-3 text-center hover:bg-secondary transition-colors">
+                      <PlayCircle className="h-5 w-5 mx-auto mb-1" />
+                      <div className="font-bold text-xl">{anime.episodes}</div>
+                      <div className="text-xs text-muted-foreground">Episodes</div>
                     </div>
                   )}
-                  {anime.year && (
-                    <div className="flex items-center gap-2 bg-secondary px-4 py-2 rounded-full transition-colors duration-200 hover:bg-secondary/80">
-                      <Calendar className="h-4 w-4" />
-                      <span>{anime.year}</span>
+                  {anime.status && (
+                    <div className="bg-secondary/50 border border-border rounded-xl p-3 text-center hover:bg-secondary transition-colors">
+                      <Clock className="h-5 w-5 mx-auto mb-1" />
+                      <div className="font-bold text-sm">{anime.status}</div>
+                      <div className="text-xs text-muted-foreground">Status</div>
                     </div>
                   )}
                 </div>
 
-                <p className="text-foreground leading-relaxed mb-4 line-clamp-6">
-                  {anime.synopsis || 'No synopsis available.'}
-                </p>
+                {/* Airing Information */}
+                {(anime.aired || anime.season || anime.year) && (
+                  <div className="bg-secondary/30 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold mb-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <span>Airing Information</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      {anime.season && anime.year && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Season:</span>
+                          <span className="font-medium capitalize">{anime.season} {anime.year}</span>
+                        </div>
+                      )}
+                      {anime.aired?.from && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">From:</span>
+                          <span className="font-medium">{new Date(anime.aired.from).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {anime.aired?.to && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">To:</span>
+                          <span className="font-medium">{new Date(anime.aired.to).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
+                {/* Studios */}
+                {anime.studios && anime.studios.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="h-4 w-4 text-accent" />
+                      <span className="text-sm font-semibold">Studios</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {anime.studios.map((studio) => (
+                        <Badge key={studio.mal_id} variant="secondary" className="bg-accent/10 text-accent border-accent/20">
+                          {studio.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Genres */}
                 {anime.genres && anime.genres.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {anime.genres.map((genre) => (
-                      <span
-                        key={genre.mal_id}
-                        className="bg-gradient-accent text-white px-3 py-1 rounded-full text-sm font-medium transition-transform duration-200 hover:scale-105"
-                      >
-                        {genre.name}
-                      </span>
-                    ))}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Genres</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {anime.genres.map((genre) => (
+                        <Badge key={genre.mal_id} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+                          {genre.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Themes */}
+                {anime.themes && anime.themes.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Award className="h-4 w-4 text-accent" />
+                      <span className="text-sm font-semibold">Themes</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {anime.themes.map((theme) => (
+                        <Badge key={theme.mal_id} variant="outline" className="border-accent/30 text-accent">
+                          {theme.name}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Synopsis & Information Tabs */}
+          <div className="bg-card rounded-2xl shadow-md mb-8 overflow-hidden animate-slide-up">
+            <Tabs defaultValue="synopsis" className="w-full">
+              <TabsList className="w-full grid grid-cols-2 rounded-none bg-secondary/50 p-0 h-auto">
+                <TabsTrigger value="synopsis" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground py-4">
+                  <Info className="h-4 w-4 mr-2" />
+                  Synopsis
+                </TabsTrigger>
+                <TabsTrigger value="stats" className="rounded-none data-[state=active]:bg-accent data-[state=active]:text-accent-foreground py-4">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Statistics
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="synopsis" className="p-6 m-0">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <p className="text-foreground leading-relaxed whitespace-pre-line">
+                    {anime.synopsis || 'No synopsis available for this anime.'}
+                  </p>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="stats" className="p-6 m-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      <Award className="h-5 w-5 text-primary" />
+                      Ratings & Popularity
+                    </h3>
+                    <div className="space-y-3">
+                      {anime.score && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Score</span>
+                          <span className="font-bold text-xl text-primary flex items-center gap-2">
+                            <Star className="h-5 w-5 fill-primary" />
+                            {anime.score} / 10
+                          </span>
+                        </div>
+                      )}
+                      {anime.rank && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Rank</span>
+                          <span className="font-bold text-accent">#{anime.rank}</span>
+                        </div>
+                      )}
+                      {anime.popularity && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Popularity</span>
+                          <span className="font-bold text-accent">#{anime.popularity}</span>
+                        </div>
+                      )}
+                      {anime.members && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Members</span>
+                          <span className="font-bold">{anime.members.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {anime.favorites && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Favorites</span>
+                          <span className="font-bold text-primary">{anime.favorites.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      <Info className="h-5 w-5 text-accent" />
+                      Additional Info
+                    </h3>
+                    <div className="space-y-3">
+                      {anime.type && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Type</span>
+                          <span className="font-bold">{anime.type}</span>
+                        </div>
+                      )}
+                      {anime.source && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Source</span>
+                          <span className="font-bold capitalize">{anime.source}</span>
+                        </div>
+                      )}
+                      {anime.rating && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Rating</span>
+                          <span className="font-bold">{anime.rating}</span>
+                        </div>
+                      )}
+                      {anime.duration && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Duration</span>
+                          <span className="font-bold">{anime.duration}</span>
+                        </div>
+                      )}
+                      {anime.broadcast?.string && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Broadcast</span>
+                          <span className="font-bold text-sm">{anime.broadcast.string}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Theme Songs Section */}
@@ -179,25 +371,34 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 <h2 className="text-2xl font-bold">Theme Songs</h2>
               </div>
               <div className="grid gap-4">
-                {themeSongs.map((theme) => (
-                  <button
-                    key={theme.id}
-                    onClick={() => setSelectedSong(theme)}
-                    className="flex items-center gap-4 p-4 bg-secondary/50 rounded-xl hover:bg-secondary transition-all duration-200 hover:shadow-md text-left"
-                  >
-                    <div className="bg-primary/20 px-3 py-2 rounded-lg font-bold text-primary whitespace-nowrap">
-                      {theme.type}{theme.sequence || ''}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate">
-                        {theme.song?.title || 'Unknown Title'}
-                        {theme.song?.artists && theme.song.artists.length > 0 && (
-                          <> by {theme.song.artists.map(a => a.name).join(', ')}</>
-                        )}
-                      </h3>
-                    </div>
-                  </button>
-                ))}
+                {themeSongs.map((theme) => {
+                  const songTitle = theme.song?.title || 'Unknown Title';
+                  const artists = theme.song?.artists?.map(a => a.name).join(', ') || '';
+                  const searchQuery = `${anime.title} ${theme.type}${theme.sequence || ''} ${songTitle} ${artists}`.trim();
+                  const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+                  
+                  return (
+                    <a
+                      key={theme.id}
+                      href={youtubeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-4 p-4 bg-secondary/50 rounded-xl hover:bg-secondary transition-all duration-200 hover:shadow-md text-left group"
+                    >
+                      <div className="bg-primary/20 px-3 py-2 rounded-lg font-bold text-primary whitespace-nowrap group-hover:bg-primary/30 transition-colors">
+                        {theme.type}{theme.sequence || ''}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {songTitle}
+                          {artists && <> by {artists}</>}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1">Click to search on YouTube</p>
+                      </div>
+                      <Music className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </a>
+                  );
+                })}
               </div>
             </div>
           ) : null}

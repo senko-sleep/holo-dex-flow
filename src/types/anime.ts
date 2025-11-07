@@ -23,6 +23,21 @@ export interface Anime {
   genres?: Array<{ mal_id: number; name: string }>;
   themes?: Array<{ mal_id: number; name: string }>;
   studios?: Array<{ mal_id: number; name: string }>;
+  
+  // Additional stats and info
+  rank?: number;
+  popularity?: number;
+  members?: number;
+  favorites?: number;
+  source?: string;
+  rating?: string;
+  duration?: string;
+  broadcast?: {
+    day?: string;
+    time?: string;
+    timezone?: string;
+    string?: string;
+  };
 }
 
 export interface AnimeCharacter {

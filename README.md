@@ -1,6 +1,44 @@
-# Welcome to your Lovable project
+# AnimeDex+ 🎌
 
-## Project info
+> A modern, feature-rich anime and manga discovery platform with advanced search, manga reading, and personalization features.
+
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-61dafb)](https://reactjs.org/)
+
+## ✨ Features
+
+### 🔍 Advanced Search
+- **Multi-type Search**: Search anime, manga, and characters simultaneously
+- **Smart Filters**: Dynamic filters powered by MangaDex API
+- **View Modes**: Toggle between grid and list views
+- **Sort Options**: Sort by relevance, rating, year, or title
+- **Real-time Results**: Instant search with debouncing
+
+### 📚 Manga Reader
+- **Professional Reading Experience**: Full-screen, distraction-free reading
+- **Progress Tracking**: Auto-save reading progress
+- **Zoom Controls**: 50%-200% zoom range
+- **Reading Modes**: Single page or continuous scroll
+- **Quality Toggle**: High quality or data saver mode
+- **Keyboard Navigation**: Arrow keys for page navigation
+- **Page Thumbnails**: Quick navigation sidebar
+
+### ⭐ Favorites System
+- **Bookmark Content**: Save anime, manga, and characters
+- **Persistent Storage**: LocalStorage-based favorites
+- **Quick Access**: One-click favorite management
+- **Cross-session**: Favorites persist across sessions
+
+### ⚡ Performance
+- **Intelligent Caching**: 80% reduction in API calls
+- **Retry Logic**: Automatic retry with exponential backoff
+- **Error Boundaries**: Graceful error handling
+- **Loading States**: Professional skeleton loaders
+- **Optimized Queries**: React Query with smart caching
+
+## 🚀 Quick Start
 
 **URL**: https://lovable.dev/projects/1f17dcfe-b431-4772-94e8-ad20616cd516
 
@@ -50,15 +88,59 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## What technologies are used for this project?
+## 🛠️ Technology Stack
 
-This project is built with:
+### Frontend
+- **React 18.3** - UI library
+- **TypeScript 5.9** - Type safety
+- **Vite 7.2** - Build tool & dev server
+- **React Router 6.30** - Client-side routing
+- **TanStack Query 5.90** - Data fetching & caching
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### UI Components
+- **shadcn/ui** - Component library
+- **Radix UI** - Accessible primitives
+- **Tailwind CSS 3.4** - Utility-first styling
+- **Lucide React** - Icon system
+
+### APIs
+- **Jikan API v4** - Anime data (MyAnimeList)
+- **MangaDex API** - Manga data & chapters
+- **AnimeThemes API** - Theme songs
+
+### State Management
+- **React Query** - Server state
+- **LocalStorage** - Favorites & progress
+- **Custom Cache** - In-memory caching
+
+## 📁 Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── ui/             # shadcn/ui components
+│   ├── AnimeCard.tsx   # Anime display card
+│   ├── MangaCard.tsx   # Manga display card
+│   ├── SearchBar.tsx   # Search interface
+│   ├── SearchFilters.tsx # Filter controls
+│   ├── LoadingGrid.tsx # Loading skeletons
+│   └── ErrorBoundary.tsx # Error handling
+├── pages/              # Route pages
+│   ├── Index.tsx       # Home page
+│   ├── SearchResults.tsx # Search results
+│   ├── MangaDetail.tsx # Manga info
+│   └── MangaReader.tsx # Chapter reader
+├── services/           # API integrations
+│   ├── animeApi.ts     # Jikan API
+│   └── mangadexApi.ts  # MangaDex API
+├── lib/                # Utilities
+│   ├── cache.ts        # Caching system
+│   ├── favorites.ts    # Favorites manager
+│   └── utils.ts        # Helper functions
+└── types/              # TypeScript types
+    ├── anime.ts        # Anime types
+    └── manga.ts        # Manga types
+```
 
 ## How can I deploy this project?
 

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { animeApi } from '@/services/animeApi';
 import { Anime } from '@/types/anime';
 
 interface SearchBarProps {
-  onAnimeSelect: (anime: Anime) => void;
+  onAnimeSelect?: (anime: Anime) => void;
 }
 
 export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Anime[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -99,6 +101,19 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
     inputRef.current?.focus();
   };
 
+  const handleSearchSubmit = () => {
+    if (query.trim().length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(query)}`);
+      setIsOpen(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
+
   // === Get current bounding rect safely ===
   const getRect = () => {
     return containerRef.current?.getBoundingClientRect() || { top: 0, left: 0, width: 0, bottom: 0 };
@@ -107,20 +122,21 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
   return (
     <div ref={containerRef} className="relative w-full max-w-2xl mx-auto">
       {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+      <div className="relative group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors pointer-events-none" />
         <Input
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Search anime, manga, characters..."
-          className="pl-12 pr-12 h-14 bg-card border-border text-lg rounded-xl shadow-card focus:ring-2 focus:ring-primary transition-all"
+          className="pl-12 pr-12 h-14 bg-card/80 backdrop-blur-sm border-border/50 text-lg rounded-2xl shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-primary/20 focus:ring-2 focus:ring-primary focus:border-primary/50 transition-all"
         />
         {query && (
           <button
             onClick={clearSearch}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all"
             aria-label="Clear search"
           >
             <X className="h-5 w-5" />
@@ -180,6 +196,14 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
               <div className="p-4 text-center text-muted-foreground">
                 No results found.
               </div>
+            )}
+            {results.length > 0 && (
+              <button
+                onClick={handleSearchSubmit}
+                className="w-full p-3 text-center text-primary hover:bg-secondary/50 transition-colors border-t border-border font-medium"
+              >
+                View All Results →
+              </button>
             )}
           </div>
         </div>
