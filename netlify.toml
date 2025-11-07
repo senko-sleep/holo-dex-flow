@@ -9,7 +9,7 @@
   
   # Environment variables
   [build.environment]
-    NODE_VERSION = "20.17.0"
+    NODE_VERSION = "20.19.0"
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
