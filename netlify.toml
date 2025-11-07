@@ -10,6 +10,8 @@
   # Environment variables
   [build.environment]
     NODE_VERSION = "20.19.0"
+    # Disable Next.js auto-detection (we're using Vite)
+    NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
