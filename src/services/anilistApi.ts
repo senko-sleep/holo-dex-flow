@@ -105,7 +105,7 @@ interface TransformedAnime {
       large_image_url?: string;
     };
   };
-  title?: string;
+  title: string;
   title_english?: string;
   title_japanese?: string;
   type?: string;
@@ -194,7 +194,7 @@ function transformAnime(anilistAnime: AniListMedia): TransformedAnime {
         large_image_url: anilistAnime.coverImage?.extraLarge || anilistAnime.coverImage?.large,
       },
     },
-    title: anilistAnime.title?.english || anilistAnime.title?.romaji,
+    title: anilistAnime.title?.english || anilistAnime.title?.romaji || 'Unknown Title',
     title_english: anilistAnime.title?.english,
     title_japanese: anilistAnime.title?.native,
     type: anilistAnime.format?.replace('_', ' '),

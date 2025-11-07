@@ -87,7 +87,7 @@ const nightThemes: Record<Season, SeasonalColors> = {
     gradient: 'linear-gradient(135deg, hsl(220 90% 65% / 0.95), hsl(260 85% 65% / 0.95))',
     cardGradient: 'linear-gradient(135deg, hsl(220 60% 15% / 0.9), hsl(260 55% 18% / 0.9))',
     glowColor: 'rgba(96, 165, 250, 0.6)',
-    icon: '🌙❄️',
+    icon: '❄️',
   },
   spring: {
     primary: 'hsl(280 90% 65%)', // Purple
@@ -100,7 +100,7 @@ const nightThemes: Record<Season, SeasonalColors> = {
     gradient: 'linear-gradient(135deg, hsl(280 90% 65% / 0.95), hsl(320 85% 65% / 0.95))',
     cardGradient: 'linear-gradient(135deg, hsl(280 60% 18% / 0.9), hsl(320 55% 20% / 0.9))',
     glowColor: 'rgba(168, 85, 247, 0.6)',
-    icon: '🌙🌸',
+    icon: '🌸',
   },
   summer: {
     primary: 'hsl(190 90% 60%)', // Teal
@@ -113,7 +113,7 @@ const nightThemes: Record<Season, SeasonalColors> = {
     gradient: 'linear-gradient(135deg, hsl(190 90% 60% / 0.95), hsl(170 85% 60% / 0.95))',
     cardGradient: 'linear-gradient(135deg, hsl(190 60% 20% / 0.9), hsl(170 55% 22% / 0.9))',
     glowColor: 'rgba(34, 211, 238, 0.6)',
-    icon: '🌙🌊',
+    icon: '🌊',
   },
   fall: {
     primary: 'hsl(15 90% 60%)', // Deep orange
@@ -126,7 +126,7 @@ const nightThemes: Record<Season, SeasonalColors> = {
     gradient: 'linear-gradient(135deg, hsl(15 90% 60% / 0.95), hsl(340 85% 60% / 0.95))',
     cardGradient: 'linear-gradient(135deg, hsl(15 60% 20% / 0.9), hsl(340 55% 22% / 0.9))',
     glowColor: 'rgba(239, 68, 68, 0.6)',
-    icon: '🌙🍂',
+    icon: '🍂',
   },
 };
 
