@@ -1,0 +1,4 @@
+# Netlify Redirects for SPA
+# This ensures all routes work correctly
+
+/*    /index.html   200
