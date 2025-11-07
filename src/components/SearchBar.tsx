@@ -12,15 +12,26 @@ import { Manga, Character } from '@/types/manga';
 
 interface SearchBarProps {
   onAnimeSelect?: (anime: Anime) => void;
+  currentSection?: 'anime' | 'manga' | 'characters'; // Current page section for context-aware filtering
 }
 
-export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
+export const SearchBar = ({ onAnimeSelect, currentSection }: SearchBarProps) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [animeResults, setAnimeResults] = useState<Anime[]>([]);
   const [mangaResults, setMangaResults] = useState<Manga[]>([]);
   const [characterResults, setCharacterResults] = useState<Character[]>([]);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'anime' | 'manga' | 'characters'>('all');
+  // Use currentSection as the active filter, fallback to saved or 'all'
+  const [activeFilter, setActiveFilter] = useState<'all' | 'anime' | 'manga' | 'characters'>(() => {
+    if (currentSection) {
+      return currentSection;
+    }
+    const saved = localStorage.getItem('searchFilter');
+    if (saved && ['all', 'anime', 'manga', 'characters'].includes(saved)) {
+      return saved as 'all' | 'anime' | 'manga' | 'characters';
+    }
+    return 'all';
+  });
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +78,7 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search
+  // Debounced search with better error handling
   useEffect(() => {
     const searchAll = async () => {
       if (query.trim().length < 2) {
@@ -77,16 +88,59 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
         setIsOpen(false);
         return;
       }
+      
       setIsLoading(true);
       try {
-        const [anime, manga, characters] = await Promise.all([
-          animeApi.searchAnime(query),
-          mangadexApi.searchManga(query, {}, 10, 0),
-          animeApi.searchCharacters(query, 10),
-        ]);
-        setAnimeResults(anime.slice(0, 10));
-        setMangaResults(manga.slice(0, 10));
-        setCharacterResults(characters.slice(0, 10));
+        const searchPromises = [];
+        
+        // Always search for anime
+        searchPromises.push(
+          animeApi.searchAnime(query, 5, {}, 1, true)
+            .then(anime => {
+              setAnimeResults(anime);
+              return anime;
+            })
+            .catch(error => {
+              console.error('Error searching anime:', error);
+              setAnimeResults([]);
+              return [];
+            })
+        );
+        
+        // Search for manga if enabled
+        if (activeFilter === 'all' || activeFilter === 'manga') {
+          searchPromises.push(
+            mangadexApi.searchManga(query, {}, 5, 0)
+              .then(manga => {
+                setMangaResults(manga);
+                return manga;
+              })
+              .catch(error => {
+                console.error('Error searching manga:', error);
+                setMangaResults([]);
+                return [];
+              })
+          );
+        }
+        
+        // Search for characters if enabled
+        if (activeFilter === 'all' || activeFilter === 'characters') {
+          searchPromises.push(
+            animeApi.searchCharacters(query, 5)
+              .then(characters => {
+                setCharacterResults(characters);
+                return characters;
+              })
+              .catch(error => {
+                console.error('Error searching characters:', error);
+                setCharacterResults([]);
+                return [];
+              })
+          );
+        }
+        
+        // Wait for all searches to complete
+        await Promise.all(searchPromises);
         setIsOpen(true);
       } catch (error) {
         console.error('Search error:', error);
@@ -106,8 +160,8 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
     if (onAnimeSelect) {
       onAnimeSelect(anime);
     } else {
-      // Navigate to search results and trigger anime modal
-      navigate(`/search?q=${encodeURIComponent(anime.title)}&anime=${anime.mal_id}`);
+      // Navigate to search results and trigger anime modal with section
+      navigate(`/search?q=${encodeURIComponent(anime.title)}&anime=${anime.mal_id}&section=anime`);
     }
     clearSearch();
   };
@@ -118,15 +172,45 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
     setMangaResults([]);
     setCharacterResults([]);
     setIsOpen(false);
-    setActiveFilter('all');
     inputRef.current?.focus();
   };
 
-  const handleSearchSubmit = () => {
-    if (query.trim().length >= 2) {
-      navigate(`/search?q=${encodeURIComponent(query)}`);
-      setIsOpen(false);
+  // Save filter preference to localStorage
+  const handleFilterChange = (filter: 'all' | 'anime' | 'manga' | 'characters') => {
+    setActiveFilter(filter);
+    localStorage.setItem('searchFilter', filter);
+  };
+
+  // Update filter when currentSection changes and save to localStorage
+  useEffect(() => {
+    if (currentSection) {
+      setActiveFilter(currentSection);
+      localStorage.setItem('searchFilter', currentSection);
     }
+  }, [currentSection]);
+
+  const handleSearchSubmit = () => {
+    const trimmedQuery = query.trim();
+    const searchParams = new URLSearchParams();
+    
+    if (trimmedQuery.length >= 2) {
+      searchParams.set('q', trimmedQuery);
+    }
+    
+    // Always include the active filter
+    if (activeFilter && activeFilter !== 'all') {
+      searchParams.set('section', activeFilter);
+    }
+    
+    // Add any additional filters if needed
+    if (activeFilter === 'anime') {
+      // Add anime-specific filters if any
+    } else if (activeFilter === 'manga') {
+      // Add manga-specific filters if any
+    }
+    
+    navigate(`/search?${searchParams.toString()}`);
+    setIsOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -135,15 +219,11 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
     }
   };
 
-  // === Get current bounding rect safely ===
-  const getRect = () => {
-    return containerRef.current?.getBoundingClientRect() || { top: 0, left: 0, width: 0, bottom: 0 };
-  };
 
   return (
     <div ref={containerRef} className="relative w-full max-w-2xl mx-auto">
       {/* Search Input */}
-      <div className="relative group">
+      <div className="relative group w-full">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors pointer-events-none" />
         <Input
           ref={inputRef}
@@ -151,8 +231,9 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => query.trim().length >= 2 && setIsOpen(true)}
           placeholder="Search anime, manga, characters..."
-          className="pl-12 pr-12 h-14 bg-card/80 backdrop-blur-sm border-border/50 text-lg rounded-2xl shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-primary/20 focus:ring-2 focus:ring-primary focus:border-primary/50 transition-all"
+          className="w-full pl-12 pr-12 h-14 bg-card/80 backdrop-blur-sm border-border/50 text-lg rounded-2xl shadow-lg hover:shadow-xl focus:shadow-2xl focus:shadow-primary/20 focus:ring-2 focus:ring-primary focus:border-primary/50 transition-all"
         />
         {query && (
           <button
@@ -165,58 +246,62 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
         )}
       </div>
 
-      {/* Dropdown: Fixed but dynamically positioned */}
+      {/* Dropdown: Directly below input */}
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="fixed z-[2147483647] bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl overflow-hidden pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200"
-          style={{
-            top: `${getRect().bottom + 8}px`,
-            left: `${getRect().left}px`,
-            width: `${getRect().width}px`,
-          }}
+          className="absolute z-50 w-full mt-0 bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
         >
-          {/* Filter Buttons */}
-          <div className="p-3 border-b border-border flex gap-2">
-            <Button
-              size="sm"
-              variant={activeFilter === 'all' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('all')}
-              className="flex-1"
-            >
-              All
-            </Button>
-            <Button
-              size="sm"
-              variant={activeFilter === 'anime' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('anime')}
-              className="flex-1"
-            >
-              <Tv className="h-4 w-4 mr-1" />
-              Anime ({animeResults.length})
-            </Button>
-            <Button
-              size="sm"
-              variant={activeFilter === 'manga' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('manga')}
-              className="flex-1"
-            >
-              <BookOpen className="h-4 w-4 mr-1" />
-              Manga ({mangaResults.length})
-            </Button>
-            <Button
-              size="sm"
-              variant={activeFilter === 'characters' ? 'default' : 'outline'}
-              onClick={() => setActiveFilter('characters')}
-              className="flex-1"
-            >
-              <Users className="h-4 w-4 mr-1" />
-              Characters ({characterResults.length})
-            </Button>
+          {/* Filter Buttons - Mobile Responsive */}
+          <div className="p-2 sm:p-3 border-b border-border">
+            <div className="grid grid-cols-2 sm:flex gap-1.5 sm:gap-2">
+              <Button
+                size="sm"
+                variant={activeFilter === 'all' ? 'default' : 'outline'}
+                onClick={() => handleFilterChange('all')}
+                className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
+              >
+                <span className="hidden sm:inline">All</span>
+                <span className="sm:hidden">All</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={activeFilter === 'anime' ? 'default' : 'outline'}
+                onClick={() => handleFilterChange('anime')}
+                className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
+              >
+                <Tv className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Anime</span>
+                <span className="sm:hidden ml-1">{animeResults.length}</span>
+                <span className="hidden sm:inline">({animeResults.length})</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={activeFilter === 'manga' ? 'default' : 'outline'}
+                onClick={() => handleFilterChange('manga')}
+                className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
+              >
+                <BookOpen className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Manga</span>
+                <span className="sm:hidden ml-1">{mangaResults.length}</span>
+                <span className="hidden sm:inline">({mangaResults.length})</span>
+              </Button>
+              <Button
+                size="sm"
+                variant={activeFilter === 'characters' ? 'default' : 'outline'}
+                onClick={() => handleFilterChange('characters')}
+                className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
+              >
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Characters</span>
+                <span className="sm:hidden ml-1">{characterResults.length}</span>
+                <span className="hidden sm:inline">({characterResults.length})</span>
+              </Button>
+            </div>
           </div>
 
-          {/* Scrollable Results */}
-          <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
+          {/* Scrollable Results - Mobile Optimized */}
+          <div className="overflow-y-auto" style={{ maxHeight: 'min(400px, 60vh)' }}>
             {isLoading ? (
               <div className="p-4 text-center text-muted-foreground">
                 <div className="flex items-center justify-center gap-2">
@@ -238,21 +323,21 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
                       <button
                         key={anime.mal_id}
                         onClick={() => handleAnimeClick(anime)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors text-left"
+                        className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-secondary/50 transition-colors text-left"
                       >
                         <img
                           src={anime.images.jpg.image_url}
                           alt={anime.title}
-                          className="w-12 h-16 object-cover rounded flex-shrink-0"
+                          className="w-10 h-14 sm:w-12 sm:h-16 object-cover rounded flex-shrink-0"
                           loading="lazy"
                         />
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm truncate">
+                          <h4 className="font-semibold text-xs sm:text-sm truncate">
                             {anime.title_english || anime.title}
                           </h4>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
                             {anime.score && <span className="text-primary">★ {anime.score}</span>}
-                            {anime.type && <span>• {anime.type}</span>}
+                            {anime.type && <span className="hidden sm:inline">• {anime.type}</span>}
                           </div>
                         </div>
                       </button>
@@ -275,19 +360,19 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
                           navigate(`/manga/${manga.id}`);
                           clearSearch();
                         }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors text-left"
+                        className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-secondary/50 transition-colors text-left"
                       >
                         <img
                           src={manga.coverUrl}
                           alt={manga.title}
-                          className="w-12 h-16 object-cover rounded flex-shrink-0"
+                          className="w-10 h-14 sm:w-12 sm:h-16 object-cover rounded flex-shrink-0"
                           loading="lazy"
                         />
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm truncate">{manga.title}</h4>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {manga.status && <span>{manga.status}</span>}
-                            {manga.year && <span>• {manga.year}</span>}
+                          <h4 className="font-semibold text-xs sm:text-sm truncate">{manga.title}</h4>
+                          <div className="flex items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
+                            {manga.status && <span className="truncate">{manga.status}</span>}
+                            {manga.year && <span className="hidden sm:inline">• {manga.year}</span>}
                           </div>
                         </div>
                       </button>
@@ -311,19 +396,19 @@ export const SearchBar = ({ onAnimeSelect }: SearchBarProps) => {
                           console.log('Character clicked:', character);
                           clearSearch();
                         }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors text-left"
+                        className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-secondary/50 transition-colors text-left"
                       >
                         <img
                           src={character.images.jpg.image_url}
                           alt={character.name}
-                          className="w-12 h-16 object-cover rounded flex-shrink-0"
+                          className="w-10 h-14 sm:w-12 sm:h-16 object-cover rounded flex-shrink-0"
                           loading="lazy"
                         />
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm truncate">{character.name}</h4>
+                          <h4 className="font-semibold text-xs sm:text-sm truncate">{character.name}</h4>
                           {character.favorites && (
                             <div className="text-xs text-muted-foreground">
-                              ❤️ {character.favorites.toLocaleString()} favorites
+                              ❤️ {character.favorites.toLocaleString()}
                             </div>
                           )}
                         </div>

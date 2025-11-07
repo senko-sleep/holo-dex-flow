@@ -1,11 +1,18 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
+import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
 import { Anime, AnimeCharacter, ThemeSong } from '@/types/anime';
 import { animeApi } from '@/services/animeApi';
 import { AudioPlayer } from './AudioPlayer';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 interface AnimeModalProps {
   anime: Anime;
@@ -76,23 +83,17 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
   }, [anime]);
 
   return (
-    <div
-      ref={modalRef}
-      className="fixed inset-0 bg-background/95 backdrop-blur-md z-50 overflow-y-auto animate-fade-in focus:outline-none"
-      tabIndex={-1}
-      aria-modal="true"
-      role="dialog"
-    >
-      <div className="min-h-screen px-4 py-8 md:px-6 lg:px-8">
-        <div ref={contentRef} className="max-w-6xl mx-auto relative">
-          <button
-            onClick={onClose}
-            className="fixed top-4 right-4 bg-primary p-2 rounded-full hover:bg-primary/80 transition-all duration-200 shadow-glow hover:shadow-glow z-10 border-2 border-primary/60 hover:border-primary hover:scale-110 active:scale-95"
-            aria-label="Close modal"
-          >
-            <X className="h-6 w-6 text-white" />
-          </button>
-
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent 
+        className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{anime.title_english || anime.title}</DialogTitle>
+          <DialogDescription>Anime details and information</DialogDescription>
+        </DialogHeader>
+        
+        <div className="px-4 py-8 md:px-6 lg:px-8" ref={contentRef}>
           {/* Hero Section */}
           <div className="relative rounded-2xl overflow-hidden mb-8 shadow-xl animate-slide-up">
             <div className="absolute inset-0">
@@ -101,6 +102,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 alt=""
                 className="w-full h-full object-cover blur-3xl opacity-30 scale-105"
                 loading="lazy"
+                aria-hidden="true"
               />
             </div>
             <div className="relative bg-gradient-card backdrop-blur-xl p-6 md:p-8 lg:flex lg:gap-8">
@@ -517,15 +519,15 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
               </div>
             </div>
           ) : null}
+          
+          {selectedSong && (
+            <AudioPlayer
+              song={selectedSong}
+              onClose={() => setSelectedSong(null)}
+            />
+          )}
         </div>
-      </div>
-
-      {selectedSong && (
-        <AudioPlayer
-          song={selectedSong}
-          onClose={() => setSelectedSong(null)}
-        />
-      )}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

@@ -45,12 +45,19 @@ const Index = () => {
     const loadAnime = async () => {
       setIsLoading(true);
       try {
+        console.log('Starting to load anime data...');
         const [top, seasonal, featured, manga] = await Promise.all([
           animeApi.getTopAnime(1, 24),
           animeApi.getCurrentSeasonAnime(),
           animeApi.getTopAnime(1, 10),
           mangadexApi.searchManga('', { order: { rating: 'desc' } }, 24, 0),
         ]);
+        console.log('Data loaded:', {
+          topAnime: top.length,
+          seasonalAnime: seasonal.length,
+          featuredAnime: featured.length,
+          manga: manga.length
+        });
         setTopAnime(top);
         setSeasonalAnime(seasonal);
         setFeaturedAnime(featured);

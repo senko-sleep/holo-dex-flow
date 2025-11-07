@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AniList API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error {
+            color: #ef4444;
+        }
+        .success {
+            color: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <h1>AniList API Test</h1>
+    <p>Use this page to test the AniList API and check for rate limiting or errors.</p>
+    <div>
+        <button onclick="testTopAnime()">Test Top Anime</button>
+        <button onclick="testSeasonalAnime()">Test Seasonal Anime</button>
+        <button onclick="testRateLimit()">Test Rate Limit (Spam Requests)</button>
+        <button onclick="clearCache()">Clear Cache</button>
+    </div>
+    <div id="results"></div>
+
+    <script>
+        const ANILIST_API_URL = 'https://graphql.anilist.co';
+
+        function displayResult(message, isError = false) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.className = isError ? 'error' : 'success';
+            resultsDiv.textContent = message;
+        }
+
+        async function graphqlRequest(query, variables = {}) {
+            try {
+                const response = await fetch(ANILIST_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query,
+                        variables,
+                    }),
+                });
+
+                // Check for rate limiting
+                if (response.status === 429) {
+                    const retryAfter = response.headers.get('Retry-After') || '60';
+                    throw new Error(`⏱️ RATE LIMITED! Please wait ${retryAfter} seconds before trying again.`);
+                }
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API error: ${response.status} - ${errorText}`);
+                }
+
+                const json = await response.json();
+                
+                if (json.errors) {
+                    throw new Error(`GraphQL error: ${JSON.stringify(json.errors, null, 2)}`);
+                }
+
+                return json.data;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        async function testTopAnime() {
+            displayResult('Testing top anime...');
+            
+            const query = `
+                query ($page: Int, $perPage: Int) {
+                    Page(page: $page, perPage: $perPage) {
+                        media(sort: SCORE_DESC, type: ANIME) {
+                            id
+                            idMal
+                            title {
+                                romaji
+                                english
+                                native
+                            }
+                            coverImage {
+                                large
+                                medium
+                            }
+                            averageScore
+                            popularity
+                        }
+                    }
+                }
+            `;
+
+            try {
+                const data = await graphqlRequest(query, { page: 1, perPage: 10 });
+                displayResult(`Success! Received ${data.Page.media.length} anime:\n\n` + 
+                    JSON.stringify(data.Page.media.slice(0, 3), null, 2));
+            } catch (error) {
+                displayResult(`Error: ${error.message}`, true);
+            }
+        }
+
+        async function testSeasonalAnime() {
+            displayResult('Testing seasonal anime...');
+            
+            const now = new Date();
+            const month = now.getMonth();
+            const year = now.getFullYear();
+            
+            let season = 'WINTER';
+            if (month >= 3 && month <= 5) season = 'SPRING';
+            else if (month >= 6 && month <= 8) season = 'SUMMER';
+            else if (month >= 9 && month <= 11) season = 'FALL';
+
+            const query = `
+                query ($season: MediaSeason, $year: Int, $perPage: Int) {
+                    Page(page: 1, perPage: $perPage) {
+                        media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+                            id
+                            title {
+                                romaji
+                                english
+                            }
+                            averageScore
+                            popularity
+                        }
+                    }
+                }
+            `;
+
+            try {
+                const data = await graphqlRequest(query, { season, year, perPage: 10 });
+                displayResult(`Success! Season: ${season} ${year}\nReceived ${data.Page.media.length} anime:\n\n` + 
+                    JSON.stringify(data.Page.media.slice(0, 3), null, 2));
+            } catch (error) {
+                displayResult(`Error: ${error.message}`, true);
+            }
+        }
+
+        async function testRateLimit() {
+            displayResult('Sending multiple rapid requests to test rate limiting...\n');
+            
+            const query = `
+                query {
+                    Page(page: 1, perPage: 1) {
+                        media(type: ANIME) {
+                            id
+                            title { romaji }
+                        }
+                    }
+                }
+            `;
+
+            let successCount = 0;
+            let errorCount = 0;
+            let rateLimited = false;
+
+            for (let i = 0; i < 100; i++) {
+                try {
+                    await graphqlRequest(query);
+                    successCount++;
+                    displayResult(`Request ${i + 1}: Success (${successCount} successful, ${errorCount} failed)`);
+                } catch (error) {
+                    errorCount++;
+                    if (error.message.includes('RATE LIMITED')) {
+                        rateLimited = true;
+                        displayResult(`Request ${i + 1}: ${error.message}\n\nTotal: ${successCount} successful, ${errorCount} failed`, true);
+                        break;
+                    }
+                    displayResult(`Request ${i + 1}: Error - ${error.message}\n\nTotal: ${successCount} successful, ${errorCount} failed`, true);
+                }
+                // Small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            if (!rateLimited && successCount === 100) {
+                displayResult(`All 100 requests succeeded! No rate limiting detected.`);
+            }
+        }
+
+        function clearCache() {
+            localStorage.clear();
+            displayResult('Cache cleared!');
+        }
+    </script>
+</body>
+</html>

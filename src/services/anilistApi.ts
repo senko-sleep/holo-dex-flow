@@ -36,6 +36,17 @@ interface AniListRanking {
   type: string;
 }
 
+interface SearchVariables {
+  search?: string;
+  page: number;
+  perPage: number;
+  genre_in?: string[];
+  tag_in?: string[];
+  format_in?: string[];
+  status_in?: string[];
+  [key: string]: unknown;
+}
+
 interface AniListMedia {
   id: number;
   idMal?: number;
@@ -155,33 +166,80 @@ interface TransformedCharacter {
 // Rate limiting helper
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Custom error class for API errors
+class AniListAPIError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+    public isRateLimited: boolean = false,
+    public retryAfter?: number
+  ) {
+    super(message);
+    this.name = 'AniListAPIError';
+  }
+}
+
 // GraphQL query helper
 async function graphqlRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   await delay(100); // Small delay to avoid overwhelming the API
   
-  const response = await fetch(ANILIST_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
+  try {
+    const response = await fetch(ANILIST_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`AniList API error: ${response.status}`);
+    // Check for rate limiting (429 Too Many Requests)
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After');
+      const retrySeconds = retryAfter ? parseInt(retryAfter) : 60;
+      const errorMessage = `Rate limited by AniList API. Please wait ${retrySeconds} seconds before trying again.`;
+      console.error(errorMessage);
+      throw new AniListAPIError(errorMessage, 429, true, retrySeconds);
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AniList API error:', response.status, errorText);
+      
+      let errorMessage = `AniList API error (${response.status})`;
+      if (response.status === 500) {
+        errorMessage = 'AniList server error. The service may be temporarily unavailable.';
+      } else if (response.status === 503) {
+        errorMessage = 'AniList service is temporarily unavailable. Please try again later.';
+      } else if (response.status === 404) {
+        errorMessage = 'Requested resource not found on AniList.';
+      }
+      
+      throw new AniListAPIError(errorMessage, response.status);
+    }
+
+    const json = await response.json();
+    
+    if (json.errors) {
+      console.error('GraphQL errors:', json.errors);
+      const errorMessage = json.errors[0]?.message || 'Unknown GraphQL error';
+      throw new AniListAPIError(`AniList API: ${errorMessage}`);
+    }
+
+    return json.data;
+  } catch (error) {
+    console.error('GraphQL request failed:', error);
+    // Re-throw AniListAPIError as-is, wrap other errors
+    if (error instanceof AniListAPIError) {
+      throw error;
+    }
+    throw new AniListAPIError(
+      error instanceof Error ? error.message : 'Network error connecting to AniList'
+    );
   }
-
-  const json = await response.json();
-  
-  if (json.errors) {
-    throw new Error(`GraphQL error: ${json.errors[0].message}`);
-  }
-
-  return json.data;
 }
 
 // Transform AniList data to our Anime type
@@ -262,16 +320,34 @@ function transformCharacter(anilistChar: AniListCharacter): TransformedCharacter
 }
 
 export const anilistApi = {
-  // Get top anime
-  async getTopAnime(page = 1, perPage = 24): Promise<TransformedAnime[]> {
-    const cacheKey = `anilist_top_anime_v2_${page}_${perPage}`; // v2 to bust old cache
+  // Get top anime with optional filters
+  async getTopAnime(
+    page = 1, 
+    perPage = 24,
+    filters?: {
+      genres?: string[];
+      tags?: (string | number)[];
+      format?: string[];
+      status?: string[];
+    }
+  ): Promise<TransformedAnime[]> {
+    const cacheKey = `anilist_top_anime_v4_${page}_${perPage}_${JSON.stringify(filters)}`;
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
     const query = `
-      query ($page: Int, $perPage: Int) {
+      query ($page: Int, $perPage: Int, $genre_in: [String], $tag_in: [String], $format_in: [MediaFormat], $status_in: [MediaStatus], $source_in: [MediaSource]) {
         Page(page: $page, perPage: $perPage) {
-          media(sort: SCORE_DESC, type: ANIME) {
+          media(
+            sort: [SCORE_DESC, POPULARITY_DESC], 
+            type: ANIME, 
+            isAdult: false, 
+            genre_in: $genre_in, 
+            tag_in: $tag_in, 
+            format_in: $format_in, 
+            status_in: $status_in,
+            source_in: $source_in
+          ) {
             id
             idMal
             title {
@@ -318,13 +394,29 @@ export const anilistApi = {
               day
             }
             duration
+            rankings {
+              rank
+              type
+            }
           }
         }
       }
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, { page, perPage });
+      const variables = {
+        page,
+        perPage,
+        genre_in: filters?.genres?.length ? filters.genres : undefined,
+        tag_in: filters?.tags?.length ? filters.tags.map(t => typeof t === 'string' ? parseInt(t, 10) : t) : undefined,
+        format_in: filters?.format?.length ? filters.format : undefined,
+        status_in: filters?.status?.length ? filters.status : undefined,
+        source_in: ['MANGA', 'LIGHT_NOVEL'] // Only show anime based on manga or light novels
+      };
+      
+      console.log('Fetching top anime with variables:', variables);
+      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, variables);
+      console.log('Received top anime data:', data.Page.media.length, 'items');
       const result = data.Page.media.map(transformAnime);
       cache.set(cacheKey, result, 10 * 60 * 1000);
       return result;
@@ -336,23 +428,23 @@ export const anilistApi = {
 
   // Get current season anime
   async getCurrentSeasonAnime(perPage = 12): Promise<TransformedAnime[]> {
-    const cacheKey = `anilist_seasonal_anime_v2_${perPage}`; // v2 to bust old cache
+    const cacheKey = `anilist_seasonal_anime_v4_${perPage}`; // v4 to bust old cache
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
     const now = new Date();
-    const month = now.getMonth();
+    const month = now.getMonth(); // 0-11
     const year = now.getFullYear();
     
     let season = 'WINTER';
-    if (month >= 2 && month <= 4) season = 'SPRING';
-    else if (month >= 5 && month <= 7) season = 'SUMMER';
-    else if (month >= 8 && month <= 10) season = 'FALL';
+    if (month >= 3 && month <= 5) season = 'SPRING';
+    else if (month >= 6 && month <= 8) season = 'SUMMER';
+    else if (month >= 9 && month <= 11) season = 'FALL';
 
     const query = `
       query ($season: MediaSeason, $year: Int, $perPage: Int) {
         Page(page: 1, perPage: $perPage) {
-          media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+          media(season: $season, seasonYear: $year, type: ANIME, isAdult: false, sort: POPULARITY_DESC) {
             id
             idMal
             title {
@@ -389,7 +481,9 @@ export const anilistApi = {
     `;
 
     try {
+      console.log('Fetching seasonal anime:', { season, year, perPage });
       const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, { season, year, perPage });
+      console.log('Received seasonal anime data:', data.Page.media.length, 'items');
       const result = data.Page.media.map(transformAnime);
       cache.set(cacheKey, result, 30 * 60 * 1000);
       return result;
@@ -399,49 +493,126 @@ export const anilistApi = {
     }
   },
 
-  // Search anime
-  async searchAnime(query: string, perPage = 20): Promise<TransformedAnime[]> {
-    if (!query.trim()) return [];
+  // Search anime with filters
+  async searchAnime(
+    query: string, 
+    perPage = 20,
+    filters?: {
+      genres?: string[];
+      tags?: (string | number)[];
+      format?: string[];
+      status?: string[];
+    },
+    page = 1
+  ): Promise<TransformedAnime[]> {
+    // Allow search with just filters (no query)
+    const hasFilters = filters && (
+      (filters.genres && filters.genres.length > 0) ||
+      (filters.tags && filters.tags.length > 0) ||
+      (filters.format && filters.format.length > 0) ||
+      (filters.status && filters.status.length > 0)
+    );
+    // Return empty if no query AND no filters
+    if (!query?.trim() && !hasFilters) return [];
 
-    const cacheKey = `anilist_search_v2_${query}_${perPage}`; // v2 to bust old cache
+    const cacheKey = `anilist_search_v5_${query}_${page}_${perPage}_${JSON.stringify(filters)}`;
     const cached = cache.get<TransformedAnime[]>(cacheKey);
     if (cached) return cached;
 
     const graphqlQuery = `
-      query ($search: String, $perPage: Int) {
-        Page(page: 1, perPage: $perPage) {
-          media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+      query ($search: String, $page: Int, $perPage: Int, $genre_in: [String], $tag_in: [String], $format_in: [MediaFormat], $status_in: [MediaStatus]) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo {
+            total
+            perPage
+            currentPage
+            lastPage
+            hasNextPage
+          }
+          media(
+            search: $search, 
+            type: ANIME, 
+            isAdult: true, 
+            sort: ${query?.trim() ? 'SEARCH_MATCH' : 'POPULARITY_DESC'}, 
+            genre_in: $genre_in, 
+            tag_in: $tag_in, 
+            format_in: $format_in, 
+            status_in: $status_in
+          ) {
             id
             idMal
             title {
               romaji
               english
               native
+              userPreferred
             }
             coverImage {
               large
               medium
               extraLarge
+              color
             }
+            bannerImage
             format
             episodes
             status
             averageScore
+            meanScore
             popularity
             favourites
-            description
+            description(asHtml: false)
             season
             seasonYear
+            seasonInt
+            startDate {
+              year
+              month
+              day
+            }
+            endDate {
+              year
+              month
+              day
+            }
             genres
+            synonyms
+            studios(isMain: true) {
+              nodes {
+                id
+                name
+              }
+            }
+            source
             siteUrl
             isAdult
+            nextAiringEpisode {
+              airingAt
+              timeUntilAiring
+              episode
+            }
+            trailer {
+              id
+              site
+              thumbnail
+            }
           }
         }
       }
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(graphqlQuery, { search: query, perPage });
+      const variables: SearchVariables = { 
+        search: query?.trim() || undefined, 
+        page,
+        perPage,
+        genre_in: filters?.genres?.length ? filters.genres : undefined,
+        tag_in: filters?.tags?.length ? filters.tags.map(t => typeof t === 'string' ? parseInt(t, 10) : t) : undefined,
+        format_in: filters?.format?.length ? filters.format : undefined,
+        status_in: filters?.status?.length ? filters.status : undefined
+      };
+      
+      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(graphqlQuery, variables);
       const result = data.Page.media.map(transformAnime);
       cache.set(cacheKey, result, 5 * 60 * 1000);
       return result;
@@ -599,16 +770,24 @@ export const anilistApi = {
     }
   },
 
-  // Get top characters
-  async getTopCharacters(page = 1, perPage = 50): Promise<TransformedCharacter[]> {
-    const cacheKey = `anilist_top_characters_v2_${page}_${perPage}`; // v2 to bust old cache
+  // Get top characters with optional filters
+  async getTopCharacters(
+    page = 1, 
+    perPage = 50,
+    filters?: {
+      role?: string[];
+      sort?: string;
+    }
+  ): Promise<TransformedCharacter[]> {
+    const sortValue = filters?.sort || 'FAVOURITES_DESC';
+    const cacheKey = `anilist_top_characters_v3_${page}_${perPage}_${JSON.stringify(filters)}`;
     const cached = cache.get<TransformedCharacter[]>(cacheKey);
     if (cached) return cached;
 
     const query = `
-      query ($page: Int, $perPage: Int) {
+      query ($page: Int, $perPage: Int, $sort: [CharacterSort]) {
         Page(page: $page, perPage: $perPage) {
-          characters(sort: FAVOURITES_DESC) {
+          characters(sort: $sort) {
             id
             name {
               full
@@ -627,7 +806,12 @@ export const anilistApi = {
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { characters: AniListCharacter[] } }>(query, { page, perPage });
+      const sortArray = [sortValue];
+      const data = await graphqlRequest<{ Page: { characters: AniListCharacter[] } }>(query, { 
+        page, 
+        perPage,
+        sort: sortArray
+      });
       const result = data.Page.characters.map(transformCharacter);
       cache.set(cacheKey, result, 10 * 60 * 1000);
       return result;
@@ -637,14 +821,29 @@ export const anilistApi = {
     }
   },
 
-  // Search characters
-  async searchCharacters(query: string, perPage = 10): Promise<TransformedCharacter[]> {
-    if (!query.trim()) return [];
+  // Search characters with filters
+  async searchCharacters(
+    query: string, 
+    perPage = 10,
+    filters?: {
+      role?: string[];
+      sort?: string;
+    },
+    page = 1
+  ): Promise<TransformedCharacter[]> {
+    // Allow search with just filters (no query)
+    const hasFilters = filters && (
+      (filters.role && filters.role.length > 0) ||
+      filters.sort
+    );
+    // Return empty if no query AND no filters
+    if (!query?.trim() && !hasFilters) return [];
 
+    const sortValue = filters?.sort || 'FAVOURITES_DESC';
     const graphqlQuery = `
-      query ($search: String, $perPage: Int) {
-        Page(page: 1, perPage: $perPage) {
-          characters(search: $search, sort: FAVOURITES_DESC) {
+      query ($search: String, $page: Int, $perPage: Int, $sort: [CharacterSort]) {
+        Page(page: $page, perPage: $perPage) {
+          characters(search: $search, sort: $sort) {
             id
             name {
               full
@@ -663,10 +862,79 @@ export const anilistApi = {
     `;
 
     try {
-      const data = await graphqlRequest<{ Page: { characters: AniListCharacter[] } }>(graphqlQuery, { search: query, perPage });
+      const sortArray = [sortValue];
+      const data = await graphqlRequest<{ Page: { characters: AniListCharacter[] } }>(graphqlQuery, { 
+        search: query?.trim() || undefined, 
+        page,
+        perPage,
+        sort: sortArray
+      });
       return data.Page.characters.map(transformCharacter);
     } catch (error) {
       console.error('Error searching characters on AniList:', error);
+      return [];
+    }
+  },
+
+  // Get available genres from AniList
+  async getGenres(): Promise<string[]> {
+    const cacheKey = 'anilist_genres';
+    const cached = cache.get<string[]>(cacheKey);
+    if (cached) return cached;
+
+    const query = `
+      query {
+        GenreCollection
+      }
+    `;
+
+    try {
+      const data = await graphqlRequest<{ GenreCollection: string[] }>(query);
+      const genres = data.GenreCollection || [];
+      cache.set(cacheKey, genres, 24 * 60 * 60 * 1000); // Cache for 24 hours
+      return genres;
+    } catch (error) {
+      console.error('Error fetching genres from AniList:', error);
+      // Return fallback genres
+      return [
+        'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
+        'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural',
+        'Thriller', 'Mecha', 'Music', 'Psychological'
+      ];
+    }
+  },
+
+  // Get available tags from AniList
+  async getTags(): Promise<Array<{ id: number; name: string; category: string }>> {
+    const cacheKey = 'anilist_tags';
+    const cached = cache.get<Array<{ id: number; name: string; category: string }>>(cacheKey);
+    if (cached) return cached;
+
+    const query = `
+      query {
+        MediaTagCollection {
+          id
+          name
+          category
+          isAdult
+        }
+      }
+    `;
+
+    try {
+      const data = await graphqlRequest<{ MediaTagCollection: Array<{ id: number; name: string; category: string; isAdult: boolean }> }>(query);
+      // Filter out adult tags
+      const tags = (data.MediaTagCollection || [])
+        .filter(tag => !tag.isAdult)
+        .map(tag => ({
+          id: tag.id,
+          name: tag.name,
+          category: tag.category || 'Other'
+        }));
+      cache.set(cacheKey, tags, 24 * 60 * 60 * 1000); // Cache for 24 hours
+      return tags;
+    } catch (error) {
+      console.error('Error fetching tags from AniList:', error);
       return [];
     }
   },

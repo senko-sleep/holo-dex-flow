@@ -49,6 +49,17 @@ class CacheManager {
     return true;
   }
 
+  async getOrSet<T>(key: string, fetchFn: () => Promise<T>, ttl: number = 5 * 60 * 1000): Promise<T> {
+    const cached = this.get<T>(key);
+    if (cached !== null) {
+      return cached;
+    }
+    
+    const data = await fetchFn();
+    this.set(key, data, ttl);
+    return data;
+  }
+
   clear(): void {
     this.cache.clear();
   }
@@ -83,3 +94,11 @@ class CacheManager {
 }
 
 export const cache = new CacheManager();
+
+// Expose cache clear function globally for debugging
+if (typeof window !== 'undefined') {
+  (window as { clearAppCache?: () => void }).clearAppCache = () => {
+    cache.clear();
+    console.log('Cache cleared!');
+  };
+}
