@@ -39,29 +39,18 @@ const MusicPlayer = () => {
         // Extract theme songs from anime
         const allTracks: Track[] = [];
         for (const item of anime) {
-          const details = await animeApi.getAnimeById(item.mal_id);
-          if (details?.theme) {
-            details.theme.openings?.forEach((op, index) => {
-              allTracks.push({
-                title: op,
-                anime: item.title,
-                type: 'OP',
-                number: index + 1,
-                animeImage: item.images.jpg.large_image_url,
-                animeId: item.mal_id,
-              });
+          const themeSongs = await animeApi.getThemeSongs(item.title);
+          themeSongs.forEach(theme => {
+            const songTitle = theme.song?.title || `${theme.type} ${theme.sequence}`;
+            allTracks.push({
+              title: songTitle,
+              anime: item.title,
+              type: theme.type,
+              number: theme.sequence,
+              animeImage: item.images.jpg.large_image_url,
+              animeId: item.mal_id,
             });
-            details.theme.endings?.forEach((ed, index) => {
-              allTracks.push({
-                title: ed,
-                anime: item.title,
-                type: 'ED',
-                number: index + 1,
-                animeImage: item.images.jpg.large_image_url,
-                animeId: item.mal_id,
-              });
-            });
-          }
+          });
         }
         setTracks(allTracks);
       } catch (error) {

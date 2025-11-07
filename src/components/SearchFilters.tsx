@@ -144,7 +144,7 @@ export const SearchFilters = ({ onFiltersChange, currentFilters, currentSection 
         section: 'anime',
         animeFilters: {
           genres: selectedGenres,
-          tags: selectedAnimeTags,
+          tags: selectedAnimeTags.map(String),
           format: selectedAnimeTypes,
           status: selectedAnimeStatus,
         },

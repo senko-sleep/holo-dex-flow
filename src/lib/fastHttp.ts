@@ -71,7 +71,7 @@ export class FastHttpClient {
   private defaultHeaders: Record<string, string>;
   private useProxy: boolean;
   
-  constructor(baseURL: string, defaultHeaders: Record<string, string> = {}, useProxy: boolean = process.env.NODE_ENV === 'development') {
+  constructor(baseURL: string, defaultHeaders: Record<string, string> = {}, useProxy: boolean = false) {
     this.baseUrl = baseURL.replace(/\/+$/, '');
     this.useProxy = useProxy;
     this.defaultHeaders = {
@@ -127,10 +127,8 @@ export class FastHttpClient {
 
         let fullUrl = `${this.baseUrl}${url}${queryString}`;
         
-        // Use CORS proxy in development if enabled and not a local request
-        if (this.useProxy && !fullUrl.includes('localhost') && !fullUrl.includes('127.0.0.1')) {
-          fullUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`;
-        }
+        // Don't use CORS proxy - rely on Vite proxy configuration
+        // The proxy is configured in vite.config.ts for development
         
         // Fix for TypeScript error by explicitly handling the HEAD method case
         const isGetOrHead = method === 'GET' || method === 'HEAD';
@@ -146,16 +144,6 @@ export class FastHttpClient {
         });
 
         clearTimeout(timeoutId);
-
-        // Handle proxy response
-        const responseData = response;
-        if (this.useProxy && !fullUrl.includes('localhost') && !fullUrl.includes('127.0.0.1')) {
-          const proxyResponse = await response.json();
-          if (proxyResponse.contents) {
-            return JSON.parse(proxyResponse.contents);
-          }
-          throw new Error(proxyResponse.message || 'Error from proxy');
-        }
         
         if (!response.ok) {
           if (response.status === 429 && attempt < retries) {

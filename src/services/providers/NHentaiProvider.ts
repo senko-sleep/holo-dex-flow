@@ -136,7 +136,7 @@ export class NHentaiProvider extends BaseMangaProvider {
           dataSaver: imageUrls // Same URLs for both quality modes
         },
         meta: {
-          quality: 'original',
+          quality: 'data',
           totalPages: imageUrls.length,
           serverUrl: this.imageUrl,
           timestamp: new Date().toISOString()
