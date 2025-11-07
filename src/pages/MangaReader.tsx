@@ -9,6 +9,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut, Maximiz
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Slider } from '@/components/ui/slider';
+import { applySeasonalTheme } from '@/lib/seasonalTheme';
 
 const MangaReader = () => {
   const { chapterId } = useParams<{ chapterId: string }>();
@@ -18,12 +19,17 @@ const MangaReader = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [imageQuality, setImageQuality] = useState<'data' | 'dataSaver'>('data');
-  const [readingMode, setReadingMode] = useState<'single' | 'continuous'>('single');
+  const [readingMode, setReadingMode] = useState<'single' | 'continuous'>('continuous');
   const [zoom, setZoom] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [warningAccepted, setWarningAccepted] = useState(false);
   const [contentRating, setContentRating] = useState<string>('');
+
+  useEffect(() => {
+    // Apply seasonal theme
+    applySeasonalTheme();
+  }, []);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -187,36 +193,60 @@ const MangaReader = () => {
         </div>
       </div>
 
-      {/* Reader Content */}
-      <div className="pt-16">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <img
-            src={getImageUrl(currentPage)}
-            alt={`Page ${currentPage + 1}`}
-            className="w-full h-auto"
-            loading="lazy"
-          />
-        </div>
-
-        {/* Navigation Buttons */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
-          <Button
-            onClick={goToPreviousPage}
-            disabled={currentPage === 0}
-            className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Previous
-          </Button>
-          <Button
-            onClick={goToNextPage}
-            disabled={currentPage === totalPages - 1}
-            className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
-          >
-            Next
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
+      {/* Reader Content - Continuous Scroll */}
+      <div className="pt-16 pb-20" style={{ scrollSnapType: 'y mandatory', overflowY: 'scroll', height: '100vh' }}>
+        {readingMode === 'continuous' ? (
+          <div className="max-w-4xl mx-auto px-4 py-8">
+            {Array.from({ length: totalPages }).map((_, index) => (
+              <div 
+                key={index} 
+                id={`page-${index}`}
+                className="relative mb-2"
+                style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+              >
+                <div className="absolute top-2 left-2 bg-black/70 text-white px-3 py-1 rounded-full text-sm z-10">
+                  {index + 1} / {totalPages}
+                </div>
+                <img
+                  src={getImageUrl(index)}
+                  alt={`Page ${index + 1}`}
+                  className="w-full h-auto"
+                  style={{ transform: `scale(${zoom / 100})` }}
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto px-4 py-8">
+            <img
+              src={getImageUrl(currentPage)}
+              alt={`Page ${currentPage + 1}`}
+              className="w-full h-auto"
+              style={{ transform: `scale(${zoom / 100})` }}
+              loading="lazy"
+            />
+            {/* Navigation Buttons for Single Page Mode */}
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
+              <Button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 0}
+                className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
+              <Button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages - 1}
+                className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm"
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Page Thumbnails */}
@@ -228,7 +258,10 @@ const MangaReader = () => {
                 key={index}
                 onClick={() => {
                   setCurrentPage(index);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  const pageElement = document.getElementById(`page-${index}`);
+                  if (pageElement) {
+                    pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
                 }}
                 className={`w-full aspect-[2/3] rounded overflow-hidden border-2 transition-all ${
                   currentPage === index

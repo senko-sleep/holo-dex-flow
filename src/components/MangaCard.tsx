@@ -33,7 +33,7 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
 
   return (
     <Card
-      className="group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-105 animate-scale-in"
+      className="group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-glow hover:scale-110 hover:-translate-y-2 animate-scale-in border-2 border-accent/40 hover:border-accent active:scale-105"
       onClick={onClick}
     >
       <div className="aspect-[2/3] relative overflow-hidden">
@@ -43,7 +43,7 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         
         {/* Favorite Button */}
         <button
@@ -60,7 +60,7 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
 
         {/* Status Badge */}
         {manga.status && (
-          <Badge className="absolute top-3 left-3 capitalize bg-primary/90 backdrop-blur-sm">
+          <Badge className="absolute top-3 left-3 capitalize bg-accent backdrop-blur-sm border-2 border-accent/60 group-hover:bg-accent/80 group-hover:border-accent transition-all">
             {manga.status}
           </Badge>
         )}
@@ -83,11 +83,11 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
         </div>
       </div>
 
-      <CardContent className="p-3">
-        <h3 className="font-semibold text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+      <CardContent className="p-3 bg-gradient-to-b from-accent/10 to-card/80 backdrop-blur-sm group-hover:from-accent/20 group-hover:to-accent/10 transition-all">
+        <h3 className="font-semibold text-sm line-clamp-2 mb-1 text-foreground group-hover:text-accent transition-colors">
           {manga.title}
         </h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-foreground">
           {manga.year && <span>{manga.year}</span>}
           {manga.author && (
             <>

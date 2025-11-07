@@ -12,6 +12,7 @@ import { LoadingGrid } from '@/components/LoadingGrid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Trophy, Tv, BookOpen, Users, Medal, Award } from 'lucide-react';
+import { applySeasonalTheme, getSeasonIcon } from '@/lib/seasonalTheme';
 
 const Leaderboards = () => {
   const navigate = useNavigate();
@@ -19,28 +20,62 @@ const Leaderboards = () => {
   const [topManga, setTopManga] = useState<Manga[]>([]);
   const [topCharacters, setTopCharacters] = useState<Character[]>([]);
   const [selectedAnime, setSelectedAnime] = useState<Anime | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAnime, setIsLoadingAnime] = useState(true);
+  const [isLoadingManga, setIsLoadingManga] = useState(true);
+  const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
 
   useEffect(() => {
-    const loadLeaderboards = async () => {
-      setIsLoading(true);
+    // Apply seasonal theme
+    applySeasonalTheme();
+
+    const loadAnime = async () => {
+      setIsLoadingAnime(true);
       try {
-        const [anime, manga, characters] = await Promise.all([
-          animeApi.getTopAnime(1, 50),
-          mangadexApi.searchManga('', { order: { rating: 'desc' } }, 50, 0),
-          animeApi.getTopCharacters(1, 50),
-        ]);
+        // Match home page: page 1, 24 items (or 50 for leaderboards)
+        const anime = await animeApi.getTopAnime(1, 50);
+        console.log('Loaded top anime:', anime.length, anime);
         setTopAnime(anime);
-        setTopManga(manga);
-        setTopCharacters(characters);
       } catch (error) {
-        console.error('Error loading leaderboards:', error);
+        console.error('Error loading top anime:', error);
       } finally {
-        setIsLoading(false);
+        setIsLoadingAnime(false);
       }
     };
 
-    loadLeaderboards();
+    const loadManga = async () => {
+      setIsLoadingManga(true);
+      try {
+        // Match home page manga loading
+        const manga = await mangadexApi.searchManga('', { 
+          order: { rating: 'desc' },
+          contentRating: ['safe', 'suggestive']
+        }, 50, 0);
+        console.log('Loaded top manga:', manga.length, manga);
+        setTopManga(manga);
+      } catch (error) {
+        console.error('Error loading top manga:', error);
+      } finally {
+        setIsLoadingManga(false);
+      }
+    };
+
+    const loadCharacters = async () => {
+      setIsLoadingCharacters(true);
+      try {
+        // Use page 1, 50 characters
+        const characters = await animeApi.getTopCharacters(1, 50);
+        console.log('Loaded top characters:', characters.length, characters);
+        setTopCharacters(characters);
+      } catch (error) {
+        console.error('Error loading top characters:', error);
+      } finally {
+        setIsLoadingCharacters(false);
+      }
+    };
+
+    loadAnime();
+    loadManga();
+    loadCharacters();
   }, []);
 
   const getRankIcon = (index: number) => {
@@ -60,7 +95,7 @@ const Leaderboards = () => {
           <div className="flex items-center justify-center gap-3 mb-4">
             <Trophy className="h-12 w-12 text-primary" />
             <h1 className="text-5xl md:text-6xl font-bold gradient-text">
-              Leaderboards
+              {getSeasonIcon()} Leaderboards
             </h1>
           </div>
           <p className="text-xl text-muted-foreground">
@@ -96,7 +131,7 @@ const Leaderboards = () => {
 
           {/* Anime Tab */}
           <TabsContent value="anime">
-            {isLoading ? (
+            {isLoadingAnime ? (
               <LoadingGrid count={50} type="card" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -114,7 +149,7 @@ const Leaderboards = () => {
 
           {/* Manga Tab */}
           <TabsContent value="manga">
-            {isLoading ? (
+            {isLoadingManga ? (
               <LoadingGrid count={50} type="card" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -135,7 +170,7 @@ const Leaderboards = () => {
 
           {/* Characters Tab */}
           <TabsContent value="characters">
-            {isLoading ? (
+            {isLoadingCharacters ? (
               <LoadingGrid count={50} type="character" />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">

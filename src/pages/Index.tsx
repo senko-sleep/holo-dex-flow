@@ -12,6 +12,7 @@ import { MangaCard } from '@/components/MangaCard';
 import { AnimeModal } from '@/components/AnimeModal';
 import { LoadingGrid } from '@/components/LoadingGrid';
 import { Sparkles, TrendingUp, Flame } from 'lucide-react';
+import { applySeasonalTheme, getSeasonIcon, getSeasonName, getThemeDescription } from '@/lib/seasonalTheme';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -22,8 +23,8 @@ const Index = () => {
   const [selectedAnime, setSelectedAnime] = useState<Anime | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get current season
-  const getCurrentSeason = () => {
+  // Get current season with year
+  const getCurrentSeasonWithYear = () => {
     const now = new Date();
     const month = now.getMonth(); // 0-11
     const year = now.getFullYear();
@@ -38,6 +39,9 @@ const Index = () => {
   };
 
   useEffect(() => {
+    // Apply seasonal theme
+    applySeasonalTheme();
+
     const loadAnime = async () => {
       setIsLoading(true);
       try {
@@ -87,8 +91,9 @@ const Index = () => {
               <Sparkles className="h-7 w-7 text-primary" />
             </div>
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold gradient-text">{getCurrentSeason()}</h2>
-              <p className="text-sm text-muted-foreground">Watch the hottest anime airing now</p>
+              <h2 className="text-3xl md:text-4xl font-bold gradient-text">{getSeasonIcon()} {getCurrentSeasonWithYear()}</h2>
+              <p className="text-sm text-muted-foreground">Discover the hottest anime airing now</p>
+              <p className="text-xs text-primary mt-1 font-medium">🎨 Theme: {getSeasonName()} - {getThemeDescription()}</p>
             </div>
           </div>
           {isLoading ? (

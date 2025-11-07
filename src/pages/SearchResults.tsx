@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tv, BookOpen, Users, Grid3x3, List, SortAsc } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { applySeasonalTheme } from '@/lib/seasonalTheme';
 
 const SearchResults = () => {
   const [searchParams] = useSearchParams();
@@ -36,6 +37,11 @@ const SearchResults = () => {
     contentRating: ['safe', 'suggestive'],
     order: { relevance: 'desc' },
   });
+
+  useEffect(() => {
+    // Apply seasonal theme
+    applySeasonalTheme();
+  }, []);
 
   useEffect(() => {
     if (!query) return;

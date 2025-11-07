@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, BookOpen, Calendar, User, Loader2 } from 'lucide-react';
+import { applySeasonalTheme } from '@/lib/seasonalTheme';
 
 const MangaDetail = () => {
   const { mangaId } = useParams<{ mangaId: string }>();
@@ -19,6 +20,11 @@ const MangaDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showWarning, setShowWarning] = useState(false);
   const [warningAccepted, setWarningAccepted] = useState(false);
+
+  useEffect(() => {
+    // Apply seasonal theme
+    applySeasonalTheme();
+  }, []);
 
   useEffect(() => {
     if (!mangaId) return;

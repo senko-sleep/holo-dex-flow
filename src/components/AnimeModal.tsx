@@ -85,10 +85,10 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
         <div ref={contentRef} className="max-w-6xl mx-auto relative">
           <button
             onClick={onClose}
-            className="fixed top-4 right-4 bg-card p-2 rounded-full hover:bg-secondary transition-colors duration-200 shadow-md z-10"
+            className="fixed top-4 right-4 bg-primary p-2 rounded-full hover:bg-primary/80 transition-all duration-200 shadow-glow hover:shadow-glow z-10 border-2 border-primary/60 hover:border-primary hover:scale-110 active:scale-95"
             aria-label="Close modal"
           >
-            <X className="h-6 w-6" />
+            <X className="h-6 w-6 text-white" />
           </button>
 
           {/* Hero Section */}
@@ -123,32 +123,32 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 {/* Primary Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {anime.score && (
-                    <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-center hover:bg-primary/20 transition-colors">
+                    <div className="bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-primary/50 rounded-xl p-3 text-center hover:from-primary/40 hover:to-accent/40 hover:border-primary transition-all hover:scale-105 cursor-pointer">
                       <Star className="h-5 w-5 fill-primary text-primary mx-auto mb-1" />
-                      <div className="font-bold text-xl text-primary">{anime.score}</div>
+                      <div className="font-bold text-xl text-foreground">{anime.score}</div>
                       <div className="text-xs text-muted-foreground">Score</div>
                     </div>
                   )}
                   {anime.type && (
-                    <div className="bg-accent/10 border border-accent/20 rounded-xl p-3 text-center hover:bg-accent/20 transition-colors">
+                    <div className="bg-gradient-to-br from-accent/30 to-primary/30 border-2 border-accent/50 rounded-xl p-3 text-center hover:from-accent/40 hover:to-primary/40 hover:border-accent transition-all hover:scale-105 cursor-pointer">
                       {anime.type === 'TV' ? <Tv className="h-5 w-5 text-accent mx-auto mb-1" /> : 
                        anime.type === 'Movie' ? <Film className="h-5 w-5 text-accent mx-auto mb-1" /> :
                        <PlayCircle className="h-5 w-5 text-accent mx-auto mb-1" />}
-                      <div className="font-bold text-accent">{anime.type}</div>
+                      <div className="font-bold text-foreground">{anime.type}</div>
                       <div className="text-xs text-muted-foreground">Type</div>
                     </div>
                   )}
                   {anime.episodes && (
-                    <div className="bg-secondary/50 border border-border rounded-xl p-3 text-center hover:bg-secondary transition-colors">
-                      <PlayCircle className="h-5 w-5 mx-auto mb-1" />
-                      <div className="font-bold text-xl">{anime.episodes}</div>
+                    <div className="bg-gradient-to-br from-primary/20 to-accent/20 border-2 border-primary/40 rounded-xl p-3 text-center hover:from-primary/30 hover:to-accent/30 hover:border-primary transition-all hover:scale-105 cursor-pointer">
+                      <PlayCircle className="h-5 w-5 text-primary mx-auto mb-1" />
+                      <div className="font-bold text-xl text-foreground">{anime.episodes}</div>
                       <div className="text-xs text-muted-foreground">Episodes</div>
                     </div>
                   )}
                   {anime.status && (
-                    <div className="bg-secondary/50 border border-border rounded-xl p-3 text-center hover:bg-secondary transition-colors">
-                      <Clock className="h-5 w-5 mx-auto mb-1" />
-                      <div className="font-bold text-sm">{anime.status}</div>
+                    <div className="bg-gradient-to-br from-accent/20 to-primary/20 border-2 border-accent/40 rounded-xl p-3 text-center hover:from-accent/30 hover:to-primary/30 hover:border-accent transition-all hover:scale-105 cursor-pointer">
+                      <Clock className="h-5 w-5 text-accent mx-auto mb-1" />
+                      <div className="font-bold text-sm text-foreground">{anime.status}</div>
                       <div className="text-xs text-muted-foreground">Status</div>
                     </div>
                   )}
@@ -375,6 +375,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                   const songTitle = theme.song?.title || 'Unknown Title';
                   const artists = theme.song?.artists?.map(a => a.name).join(', ') || '';
                   const searchQuery = `${anime.title} ${theme.type}${theme.sequence || ''} ${songTitle} ${artists}`.trim();
+                  // Direct YouTube search that auto-plays first result
                   const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
                   
                   return (
@@ -383,7 +384,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                       href={youtubeUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-4 p-4 bg-secondary/50 rounded-xl hover:bg-secondary transition-all duration-200 hover:shadow-md text-left group"
+                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary/30 to-accent/30 rounded-xl hover:from-primary/40 hover:to-accent/40 transition-all duration-200 hover:shadow-glow hover:scale-[1.02] text-left group border-2 border-primary/40 hover:border-primary"
                     >
                       <div className="bg-primary/20 px-3 py-2 rounded-lg font-bold text-primary whitespace-nowrap group-hover:bg-primary/30 transition-colors">
                         {theme.type}{theme.sequence || ''}
@@ -393,7 +394,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                           {songTitle}
                           {artists && <> by {artists}</>}
                         </h3>
-                        <p className="text-xs text-muted-foreground mt-1">Click to search on YouTube</p>
+                        <p className="text-xs text-muted-foreground mt-1">Click to play on YouTube</p>
                       </div>
                       <Music className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                     </a>
@@ -433,7 +434,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                   return (
                     <div
                       key={char.character.mal_id}
-                      className="bg-secondary/50 rounded-xl p-4 hover:bg-secondary/70 transition-all duration-200 hover:shadow-md"
+                      className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-xl p-4 hover:from-primary/30 hover:to-accent/30 transition-all duration-200 hover:shadow-glow border-2 border-primary/30 hover:border-primary/50 hover:scale-[1.02] cursor-pointer"
                     >
                       <div className="flex flex-col md:flex-row md:items-start gap-4">
                         {/* Character Info */}

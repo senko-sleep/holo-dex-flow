@@ -60,13 +60,13 @@ export const FeaturedSlider = ({ items, onItemClick }: FeaturedSliderProps) => {
         <div className="max-w-7xl mx-auto px-8 w-full">
           <div className="max-w-2xl space-y-4 animate-fade-in">
             <div className="flex items-center gap-3">
-              <Badge className="bg-primary/90 backdrop-blur-sm text-lg px-4 py-1">
+              <Badge className="bg-primary backdrop-blur-sm text-lg px-4 py-1 border-2 border-primary/60 hover:bg-primary/80 hover:border-primary transition-all">
                 {currentItem.type || 'TV'}
               </Badge>
               {currentItem.score && (
-                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-black/50 backdrop-blur-sm">
-                  <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-                  <span className="text-white font-bold">{currentItem.score.toFixed(1)}</span>
+                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-yellow-500/20 backdrop-blur-sm border-2 border-yellow-400/60 hover:border-yellow-300 hover:bg-yellow-500/30 transition-all">
+                  <Star className="h-5 w-5 text-yellow-300 fill-yellow-300" />
+                  <span className="text-yellow-100 font-bold">{currentItem.score.toFixed(1)}</span>
                 </div>
               )}
             </div>
@@ -85,7 +85,7 @@ export const FeaturedSlider = ({ items, onItemClick }: FeaturedSliderProps) => {
               <Button
                 size="lg"
                 onClick={() => onItemClick(currentItem)}
-                className="bg-primary hover:bg-primary/90 text-white gap-2"
+                className="bg-gradient-accent hover:opacity-90 text-white gap-2 border-2 border-primary/60 hover:border-primary shadow-glow hover:shadow-glow transition-all active:scale-95"
               >
                 <Play className="h-5 w-5" />
                 View Details
@@ -101,7 +101,7 @@ export const FeaturedSlider = ({ items, onItemClick }: FeaturedSliderProps) => {
       {/* Navigation Arrows */}
       <button
         onClick={goToPrevious}
-        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100"
+        className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-primary/70 backdrop-blur-sm text-white hover:bg-primary border-2 border-primary/50 hover:border-primary transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
         aria-label="Previous slide"
       >
         <ChevronLeft className="h-8 w-8" />
@@ -109,7 +109,7 @@ export const FeaturedSlider = ({ items, onItemClick }: FeaturedSliderProps) => {
 
       <button
         onClick={goToNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100"
+        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-primary/70 backdrop-blur-sm text-white hover:bg-primary border-2 border-primary/50 hover:border-primary transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
         aria-label="Next slide"
       >
         <ChevronRight className="h-8 w-8" />
@@ -121,10 +121,10 @@ export const FeaturedSlider = ({ items, onItemClick }: FeaturedSliderProps) => {
           <button
             key={index}
             onClick={() => goToSlide(index)}
-            className={`h-2 rounded-full transition-all ${
+            className={`h-2 rounded-full transition-all hover:scale-125 ${
               index === currentIndex
-                ? 'w-8 bg-primary'
-                : 'w-2 bg-white/50 hover:bg-white/70'
+                ? 'w-8 bg-primary shadow-glow'
+                : 'w-2 bg-primary/50 hover:bg-primary/80'
             }`}
             aria-label={`Go to slide ${index + 1}`}
           />
