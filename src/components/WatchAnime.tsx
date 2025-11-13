@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface WatchSource {
   name: string;
@@ -62,6 +62,9 @@ export const WatchAnime = ({ isOpen, onClose, animeTitle, malId, anilistId }: Wa
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Watch {animeTitle}</DialogTitle>
+          <DialogDescription className="sr-only">
+            External streaming and download links for {animeTitle}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-4">

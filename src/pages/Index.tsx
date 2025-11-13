@@ -50,7 +50,7 @@ const Index = () => {
           animeApi.getTopAnime(1, 24),
           animeApi.getCurrentSeasonAnime(),
           animeApi.getTopAnime(1, 10),
-          mangadexApi.searchManga('', { order: { rating: 'desc' } }, 24, 0),
+          mangadexApi.searchManga('', { order: { followedCount: 'desc' } }, 24, 0),
         ]);
         console.log('Data loaded:', {
           topAnime: top.length,

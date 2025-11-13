@@ -1,9 +1,7 @@
 import { Manga, MangaChapter, MangaChapterImages } from '@/types/manga';
 import { cache } from '@/lib/cache';
 
-const MANGADEX_BASE_URL = import.meta.env.DEV
-  ? '/api/mangadex'
-  : 'https://api.mangadex.org';
+const MANGADEX_BASE_URL = 'https://api.mangadex.org';
 
 // MangaDex API credentials
 const MANGADEX_CLIENT_ID = 'personal-client-46011b3e-6848-45a0-9b09-b62429c5d6bf-cc5ab956';
@@ -136,8 +134,15 @@ export const mangadexApi = {
           params.append('includes[]', include);
         });
 
-        // Add content ratings - include all content ratings by default
-        const contentRatings = filters?.contentRating || ['safe', 'suggestive', 'erotica', 'pornographic', 'hentai'];
+        // Add content ratings - include safe content by default, and only one explicit rating if specified
+        const defaultContentRatings = ['safe', 'suggestive', 'erotica'];
+        const explicitRatings = filters?.contentRating?.filter(r => ['pornographic', 'hentai'].includes(r)) || [];
+        
+        // Use the first explicit rating if specified, or default to safe content
+        const contentRatings = explicitRatings.length > 0 
+          ? [...defaultContentRatings, explicitRatings[0]]
+          : defaultContentRatings;
+          
         contentRatings.forEach(rating => {
           params.append('contentRating[]', rating);
         });
