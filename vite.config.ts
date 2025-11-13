@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
           proxy.on("proxyReq", (proxyReq, req) => {
             const origin = req.headers.origin || `http://${req.headers.host}`;
             proxyReq.setHeader("Origin", origin);
+            // Add MangaDex API authorization header
+            proxyReq.setHeader("Authorization", "Bearer personal-client-46011b3e-6848-45a0-9b09-b62429c5d6bf-cc5ab956");
             console.log("→ Sending Request:", req.method, req.url, "Origin:", origin);
           });
 
