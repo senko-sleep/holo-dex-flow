@@ -89,6 +89,7 @@ export interface ThemeSong {
       filename: string;
       link: string;
       audio?: string;
+      duration?: number;
     }>;
   }>;
 }

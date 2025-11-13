@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Music } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Music } from 'lucide-react';
 
 export interface ThemeSongVideo {
   id: number;
@@ -27,10 +27,10 @@ export interface ThemeSong {
 
 interface ThemeSongPlayerProps {
   theme: ThemeSong;
-  onNext: () => void;
-  onPrevious: () => void;
-  hasNext: boolean;
-  hasPrevious: boolean;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
 }
 
 export const ThemeSongPlayer = ({ 
@@ -48,10 +48,22 @@ export const ThemeSongPlayer = ({
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Get the best quality video with audio
-  const bestVideo = theme.videos
-    .filter(v => v.audio && v.quality === '1080p')
-    .sort((a, b) => (b.quality || '').localeCompare(a.quality || ''))[0] || 
-    theme.videos[0];
+  const bestVideo = theme.videos.length > 0 
+    ? theme.videos
+        .filter(v => v.audio || v.link)
+        .sort((a, b) => {
+          // Prioritize videos with audio
+          if (a.audio && !b.audio) return -1;
+          if (!a.audio && b.audio) return 1;
+          
+          // Then sort by quality
+          const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
+          const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
+          const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
+          
+          return bQuality - aQuality;
+        })[0] 
+    : null;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -121,7 +133,7 @@ export const ThemeSongPlayer = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!bestVideo) {
+  if (!bestVideo || theme.videos.length === 0) {
     return (
       <div className="bg-card rounded-xl p-4 shadow-lg flex items-center justify-center text-muted-foreground">
         <Music className="mr-2 h-5 w-5" />
@@ -129,6 +141,7 @@ export const ThemeSongPlayer = ({
       </div>
     );
   }
+
 
   return (
     <div className="bg-card rounded-xl p-4 shadow-lg">
@@ -143,37 +156,25 @@ export const ThemeSongPlayer = ({
           {theme.song.title} {theme.type}{theme.sequence > 1 ? ` ${theme.sequence}` : ''}
         </h3>
         {theme.song.artists.length > 0 && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mb-3">
             by {theme.song.artists.map(a => a.name).join(', ')}
           </p>
         )}
+        {bestVideo && bestVideo.quality && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Quality: {bestVideo.quality}
+          </p>
+        )}
+        
       </div>
 
-      <div className="flex items-center gap-4 mb-4">
-        <button 
-          onClick={onPrevious} 
-          disabled={!hasPrevious}
-          className="p-2 rounded-full hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Previous track"
-        >
-          <SkipBack size={20} />
-        </button>
-        
+      <div className="flex justify-center mb-4">
         <button
           onClick={togglePlay}
           className="p-3 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-colors"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-0.5" />}
-        </button>
-        
-        <button 
-          onClick={onNext} 
-          disabled={!hasNext}
-          className="p-2 rounded-full hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Next track"
-        >
-          <SkipForward size={20} />
         </button>
       </div>
 

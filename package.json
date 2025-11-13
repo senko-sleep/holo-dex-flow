@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "npx firebase deploy --only hosting"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -48,6 +50,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "firebase": "^12.5.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
@@ -56,6 +59,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.66.0",
     "react-hotkeys-hook": "^5.2.1",
+    "react-intersection-observer": "^10.0.0",
     "react-resizable-panels": "^2.1.9",
     "react-router-dom": "^6.30.1",
     "recharts": "^2.15.4",

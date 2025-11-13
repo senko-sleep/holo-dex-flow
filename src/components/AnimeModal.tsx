@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info, Search } from 'lucide-react';
 import { ThemeSongPlayer } from './ThemeSongPlayer';
 import { Anime, AnimeCharacter, ThemeSong } from '@/types/anime';
 import { animeApi } from '@/services/animeApi';
@@ -23,11 +24,35 @@ interface AnimeModalProps {
 export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
   const [characters, setCharacters] = useState<AnimeCharacter[]>([]);
   const [themeSongs, setThemeSongs] = useState<ThemeSong[]>([]);
+  const [filteredThemeSongs, setFilteredThemeSongs] = useState<ThemeSong[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSong, setSelectedSong] = useState<ThemeSong | null>(null);
   const [error, setError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  
+  // Filter theme songs based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredThemeSongs(themeSongs);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = themeSongs.filter(song => 
+        song.song.title.toLowerCase().includes(query) ||
+        (song.song.artists && song.song.artists.some(artist => 
+          artist.name.toLowerCase().includes(query)
+        ))
+      );
+      setFilteredThemeSongs(filtered);
+    }
+  }, [searchQuery, themeSongs]);
+  
+  // Initialize filtered theme songs when themeSongs changes
+  useEffect(() => {
+    setFilteredThemeSongs(themeSongs);
+  }, [themeSongs]);
 
   // Handle ESC key to close modal
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -187,6 +212,21 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                       <h3 className="text-lg font-bold">Airing Information</h3>
                     </div>
                     
+                    {/* Next Episode Countdown */}
+                    {anime.broadcast?.string && (
+                      <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-primary" />
+                            <span className="font-medium">Next Episode:</span>
+                          </div>
+                          <span className="font-semibold text-primary">
+                            {anime.broadcast.string}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Left Column */}
                       <div className="space-y-3">
@@ -221,7 +261,7 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                       
                       {/* Right Column */}
                       <div className="space-y-3">
-                        {anime.aired?.to && (
+                        {anime.aired?.to ? (
                           <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Calendar className="h-4 w-4" />
@@ -235,16 +275,33 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                               })}
                             </span>
                           </div>
+                        ) : (
+                          <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              <span>Status</span>
+                            </div>
+                            <span className="font-medium text-primary">
+                              Currently Airing
+                            </span>
+                          </div>
                         )}
                         
                         {anime.broadcast?.string && (
                           <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Tv className="h-4 w-4" />
-                              <span>Broadcast</span>
+                              <span>Broadcast Time</span>
                             </div>
                             <span className="font-medium text-foreground text-right">
-                              {anime.broadcast.string}
+                              {(() => {
+                                const broadcastTime = new Date(anime.broadcast.string);
+                                return broadcastTime.toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                });
+                              })()}
                             </span>
                           </div>
                         )}
@@ -252,13 +309,13 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                     </div>
                     
                     {/* Airing Duration */}
-                    {anime.aired?.from && anime.aired?.to && (
+                    {anime.aired?.from && (
                       <div className="mt-4 text-center text-sm text-muted-foreground">
                         <span className="inline-flex items-center">
                           <Clock className="h-3.5 w-3.5 mr-1" />
                           {(() => {
                             const start = new Date(anime.aired.from);
-                            const end = new Date(anime.aired.to);
+                            const end = anime.aired.to ? new Date(anime.aired.to) : new Date();
                             const diffTime = Math.abs(end.getTime() - start.getTime());
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                             const diffMonths = Math.ceil(diffDays / 30.44);
@@ -275,7 +332,9 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                               duration = `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'}`;
                             }
                             
-                            return `Aired for ${duration} (${anime.episodes || '?'} episodes)`;
+                            return anime.aired?.to 
+                              ? `Aired for ${duration} (${anime.episodes || '?'} episodes)`
+                              : `Airing for ${duration} (${anime.episodes || '?'} episodes so far)`;
                           })()}
                         </span>
                       </div>
@@ -411,30 +470,96 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
             </div>
           ) : themeSongs.length > 0 ? (
             <div className="bg-card rounded-2xl p-6 mb-8 shadow-md animate-slide-up">
-              <div className="flex items-center gap-2 mb-6">
-                <Music className="h-6 w-6 text-primary" />
-                <h2 className="text-2xl font-bold">Theme Songs</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <Music className="h-6 w-6 text-primary" />
+                  <h2 className="text-2xl font-bold">Theme Songs</h2>
+                  <span className="text-sm text-muted-foreground">
+                    ({themeSongs.length} {themeSongs.length === 1 ? 'song' : 'songs'})
+                  </span>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search songs..."
+                    className="w-full pl-10 pr-4 py-2 bg-secondary/30 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent"
+                  />
+                </div>
+                <a 
+                  href={`#music`} 
+                  className="text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('music')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  View Full OST <span aria-hidden="true">→</span>
+                </a>
               </div>
+              
               <div className="space-y-4">
-                {themeSongs.map((theme, index) => (
-                  <div key={theme.id} className="p-4 bg-secondary/20 rounded-lg">
+                {filteredThemeSongs.map((theme, index) => (
+                  <div key={theme.id} className="p-4 bg-secondary/10 hover:bg-secondary/20 rounded-lg transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        theme.type === 'OP' 
+                          ? 'bg-amber-500/20 text-amber-500' 
+                          : 'bg-purple-500/20 text-purple-500'
+                      }`}>
+                        {theme.type} {theme.sequence > 1 ? theme.sequence : ''}
+                      </span>
+                    </div>
                     <ThemeSongPlayer
                       theme={theme}
                       onNext={() => {
-                        if (index < themeSongs.length - 1) {
-                          setThemeSongs([...themeSongs]); // Force re-render
+                        if (index < filteredThemeSongs.length - 1) {
+                          const nextTheme = filteredThemeSongs[index + 1];
+                          const nextIndex = themeSongs.findIndex(t => t.id === nextTheme.id);
+                          setThemeSongs([...themeSongs]);
+                          setCurrentTrackIndex(nextIndex);
                         }
                       }}
                       onPrevious={() => {
                         if (index > 0) {
-                          setThemeSongs([...themeSongs]); // Force re-render
+                          const prevTheme = filteredThemeSongs[index - 1];
+                          const prevIndex = themeSongs.findIndex(t => t.id === prevTheme.id);
+                          setThemeSongs([...themeSongs]);
+                          setCurrentTrackIndex(prevIndex);
                         }
                       }}
-                      hasNext={index < themeSongs.length - 1}
+                      hasNext={index < filteredThemeSongs.length - 1}
                       hasPrevious={index > 0}
                     />
                   </div>
                 ))}
+                {filteredThemeSongs.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No songs found matching "{searchQuery}"
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 text-center">
+                <button 
+                  onClick={() => {
+                    onClose();
+                    navigate('/music', { 
+                      state: { 
+                        animeTitle: anime.title_english || anime.title,
+                        animeId: anime.mal_id,
+                        autoSearch: true
+                      } 
+                    });
+                  }}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  View full OST with lyrics and more details <span aria-hidden="true">→</span>
+                </button>
               </div>
             </div>
           ) : null}
