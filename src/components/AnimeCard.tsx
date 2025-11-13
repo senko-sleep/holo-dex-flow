@@ -27,8 +27,8 @@ export const AnimeCard = ({ anime, onClick }: AnimeCardProps) => {
         
         {/* Score badge - always visible */}
         {anime.score && (
-          <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/20 backdrop-blur-sm border-2 border-yellow-400/60 group-hover:border-yellow-300 group-hover:bg-yellow-500/30 transition-all">
-            <Star className="h-3 w-3 text-yellow-300 fill-yellow-300 group-hover:text-yellow-200" />
+          <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-500/20 backdrop-blur-sm border-2 border-yellow-400/60 group-hover:border-yellow-300 group-hover:bg-yellow-500/30 transition-all">
+            <Star className="h-3 w-3 text-yellow-300 fill-yellow-300 group-hover:text-orange-200" />
             <span className="text-yellow-100 text-xs font-bold">{anime.score.toFixed(1)}</span>
           </div>
         )}
