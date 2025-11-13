@@ -15,7 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tv, BookOpen, Users, Grid3x3, List, SortAsc } from 'lucide-react';
+import { Tv, BookOpen, Users, Grid3x3, List, SortAsc, X } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { applySeasonalTheme } from '@/lib/seasonalTheme';
 
@@ -187,6 +187,13 @@ const SearchResults = () => {
     console.log('Character clicked:', character);
   };
 
+  const clearSearch = () => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.delete('q');
+    newParams.delete('type'); // Clear type filter if present
+    navigate(`?${newParams.toString()}`, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -208,25 +215,21 @@ const SearchResults = () => {
             </h1>
             {query && (
               <p className="text-base md:text-lg text-muted-foreground">
-                Showing results for: <span className="font-semibold text-foreground px-2 py-1 bg-primary/10 rounded-lg">"{query}"</span>
+                Showing results for: 
+                <span className="font-semibold text-foreground px-2 py-1 bg-primary/10 rounded-lg inline-flex items-center gap-2 ml-2">
+                  "{query}"
+                  <button
+                    onClick={clearSearch}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-primary/10"
+                    title="Clear search"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
               </p>
             )}
           </div>
           
-          <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4 md:mb-6">
-            <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-primary/10 rounded-lg border border-primary/20">
-              <Tv className="h-3 w-3 md:h-4 md:w-4 text-primary" />
-              <span className="text-xs md:text-sm font-medium">{animeResults.length} Anime</span>
-            </div>
-            <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-accent/10 rounded-lg border border-accent/20">
-              <BookOpen className="h-3 w-3 md:h-4 md:w-4 text-accent" />
-              <span className="text-xs md:text-sm font-medium">{mangaResults.length} Manga</span>
-            </div>
-            <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-secondary rounded-lg border border-border">
-              <Users className="h-3 w-3 md:h-4 md:w-4" />
-              <span className="text-xs md:text-sm font-medium">{characterResults.length} Characters</span>
-            </div>
-          </div>
           
           <div className="flex flex-wrap items-center gap-2">
             <Select value={sortBy} onValueChange={setSortBy}>
