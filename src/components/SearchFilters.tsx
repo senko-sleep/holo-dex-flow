@@ -7,7 +7,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Filter, X } from 'lucide-react';
-import { mangadexApi, MangaFilters } from '@/services/mangadexApi';
+import { 
+  mangadexApi, 
+  MangaFilters, 
+  MANGA_CONTENT_RATINGS, 
+  MANGA_STATUS_OPTIONS, 
+  MANGA_DEMOGRAPHIC_OPTIONS 
+} from '@/services/mangadexApi';
 import { anilistApi } from '@/services/anilistApi';
 
 export interface AnimeFilters {
@@ -65,46 +71,49 @@ export const SearchFilters = ({ onFiltersChange, currentFilters, currentSection 
   const [animeGenres, setAnimeGenres] = useState<string[]>([]);
   const [animeTags, setAnimeTags] = useState<Array<{ id: number; name: string; category: string }>>([]);
 
-  // Load tags based on current section
+  // Load filters based on current section
   useEffect(() => {
     const loadData = async () => {
       if (currentSection === 'manga') {
-        const fetchedTags = await mangadexApi.getTags();
-        setTags(fetchedTags);
+        try {
+          const [fetchedTags, statusOpts, demoOpts, ratingOpts] = await Promise.all([
+            mangadexApi.getTags(),
+            mangadexApi.getStatusOptions(),
+            mangadexApi.getDemographicOptions(),
+            mangadexApi.getContentRatings()
+          ]);
+          
+          setTags(fetchedTags);
+          setStatusOptions(statusOpts);
+          setDemographicOptions(demoOpts);
+          setContentRatingOptions(ratingOpts);
+        } catch (error) {
+          console.error('Error loading manga filters:', error);
+          // Fall back to default values if API call fails
+          setStatusOptions(MANGA_STATUS_OPTIONS);
+          setDemographicOptions(MANGA_DEMOGRAPHIC_OPTIONS);
+          setContentRatingOptions(MANGA_CONTENT_RATINGS);
+        }
       } else if (currentSection === 'anime') {
-        const [genres, tags] = await Promise.all([
-          anilistApi.getGenres(),
-          anilistApi.getTags()
-        ]);
-        setAnimeGenres(genres);
-        setAnimeTags(tags);
+        try {
+          const [genres, tags] = await Promise.all([
+            anilistApi.getGenres(),
+            anilistApi.getTags()
+          ]);
+          setAnimeGenres(genres);
+          setAnimeTags(tags);
+        } catch (error) {
+          console.error('Error loading anime filters:', error);
+        }
       }
     };
     loadData();
   }, [currentSection]);
 
-  // Manga filter options (these are standard MangaDex values)
-  const statusOptions = [
-    { value: 'ongoing', label: 'Ongoing' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'hiatus', label: 'Hiatus' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ];
-
-  const demographicOptions = [
-    { value: 'shounen', label: 'Shounen' },
-    { value: 'shoujo', label: 'Shoujo' },
-    { value: 'seinen', label: 'Seinen' },
-    { value: 'josei', label: 'Josei' },
-    { value: 'none', label: 'None' },
-  ];
-
-  const ratingOptions = [
-    { value: 'safe', label: 'Safe' },
-    { value: 'suggestive', label: 'Suggestive' },
-    { value: 'erotica', label: 'Erotica' },
-    { value: 'pornographic', label: 'Pornographic' },
-  ];
+  // Manga filter options
+  const [statusOptions, setStatusOptions] = useState<Array<{value: string, label: string}>>(MANGA_STATUS_OPTIONS);
+  const [demographicOptions, setDemographicOptions] = useState<Array<{value: string, label: string}>>(MANGA_DEMOGRAPHIC_OPTIONS);
+  const [contentRatingOptions, setContentRatingOptions] = useState<Array<{value: string, label: string}>>(MANGA_CONTENT_RATINGS);
 
   const handleTagToggle = (tagId: string) => {
     setSelectedTags(prev => {
@@ -556,7 +565,7 @@ export const SearchFilters = ({ onFiltersChange, currentFilters, currentSection 
                 <div>
                   <h3 className="font-semibold mb-3">Content Rating</h3>
                   <div className="space-y-2">
-                    {ratingOptions.map(option => (
+                    {contentRatingOptions.map(option => (
                       <div key={option.value} className="flex items-center space-x-2">
                         <Checkbox
                           id={`rating-${option.value}`}

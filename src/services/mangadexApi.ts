@@ -5,6 +5,9 @@ const MANGADEX_BASE_URL = import.meta.env.DEV
   ? '/api/mangadex'
   : 'https://api.mangadex.org';
 
+// MangaDex API credentials
+const MANGADEX_CLIENT_ID = 'personal-client-46011b3e-6848-45a0-9b09-b62429c5d6bf-cc5ab956';
+
 // Rate limiting helper
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -75,6 +78,31 @@ interface AtHomeServerResponse {
   };
 }
 
+// MangaDex content ratings
+export const MANGA_CONTENT_RATINGS = [
+  { value: 'safe', label: 'Safe' },
+  { value: 'suggestive', label: 'Suggestive' },
+  { value: 'erotica', label: 'Erotica' },
+  { value: 'pornographic', label: 'Pornographic' },
+];
+
+// MangaDex status options
+export const MANGA_STATUS_OPTIONS = [
+  { value: 'ongoing', label: 'Ongoing' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'hiatus', label: 'Hiatus' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+// MangaDex demographic options
+export const MANGA_DEMOGRAPHIC_OPTIONS = [
+  { value: 'shounen', label: 'Shounen' },
+  { value: 'shoujo', label: 'Shoujo' },
+  { value: 'seinen', label: 'Seinen' },
+  { value: 'josei', label: 'Josei' },
+  { value: 'none', label: 'None' },
+];
+
 export interface MangaFilters {
   includedTags?: string[];
   excludedTags?: string[];
@@ -132,7 +160,12 @@ export const mangadexApi = {
           });
         }
 
-        const response = await fetch(`${MANGADEX_BASE_URL}/manga?${params}`);
+        const response = await fetch(`${MANGADEX_BASE_URL}/manga?${params.toString()}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+          }
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -159,9 +192,12 @@ export const mangadexApi = {
     try {
       const result = await retryFetch(async () => {
         await delay(250);
-        const response = await fetch(
-          `${MANGADEX_BASE_URL}/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`
-        );
+        const response = await fetch(`${MANGADEX_BASE_URL}/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+          }
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -200,7 +236,12 @@ export const mangadexApi = {
         params.append('order[chapter]', 'asc');
         params.append('includes[]', 'scanlation_group');
 
-        const response = await fetch(`${MANGADEX_BASE_URL}/chapter?${params}`);
+        const response = await fetch(`${MANGADEX_BASE_URL}/chapter?${params}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+          }
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -223,7 +264,12 @@ export const mangadexApi = {
     try {
       const result = await retryFetch(async () => {
         await delay(250);
-        const response = await fetch(`${MANGADEX_BASE_URL}/at-home/server/${chapterId}`);
+        const response = await fetch(`${MANGADEX_BASE_URL}/at-home/server/${chapterId}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+          }
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -246,10 +292,31 @@ export const mangadexApi = {
     }
   },
 
+  // Get available content ratings
+  async getContentRatings(): Promise<Array<{ value: string; label: string }>> {
+    // Return the predefined content ratings
+    return MANGA_CONTENT_RATINGS;
+  },
+
+  // Get available status options
+  async getStatusOptions(): Promise<Array<{ value: string; label: string }>> {
+    return MANGA_STATUS_OPTIONS;
+  },
+
+  // Get available demographic options
+  async getDemographicOptions(): Promise<Array<{ value: string; label: string }>> {
+    return MANGA_DEMOGRAPHIC_OPTIONS;
+  },
+
   // Get available tags for filtering
   async getTags(): Promise<Array<{ id: string; name: string; group: string }>> {
     try {
-      const response = await fetch(`${MANGADEX_BASE_URL}/manga/tag`);
+      const response = await fetch(`${MANGADEX_BASE_URL}/manga/tag`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+        }
+      });
 
       if (!response.ok) return [];
 
