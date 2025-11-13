@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Star, Calendar, Users, Music, Tv, Film, PlayCircle, Clock, TrendingUp, Award, Building2, Sparkles, Info } from 'lucide-react';
+import { ThemeSongPlayer } from './ThemeSongPlayer';
 import { Anime, AnimeCharacter, ThemeSong } from '@/types/anime';
 import { animeApi } from '@/services/animeApi';
 import { AudioPlayer } from './AudioPlayer';
@@ -65,12 +66,19 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
         const animeId = anime.anilist_id || anime.mal_id;
         const [charData, themeData] = await Promise.all([
           animeApi.getAnimeCharacters(animeId),
-          animeApi.getThemeSongs(anime.title),
+          animeApi.getThemeSongs(anime.title, anime.mal_id), // Pass MAL ID for better matching
         ]);
         // Sort characters by popularity (favorites count descending)
         const sortedChars = charData.sort((a, b) => (b.favorites || 0) - (a.favorites || 0));
         setCharacters(sortedChars);
-        setThemeSongs(themeData);
+        
+        // Filter out themes without any playable media
+        const playableThemes = themeData.filter(theme => 
+          theme.videos && theme.videos.length > 0 && 
+          (theme.videos.some(v => v.audio) || theme.videos.some(v => v.link))
+        );
+        
+        setThemeSongs(playableThemes);
       } catch (error) {
         console.error('Error fetching anime details:', error);
         setError('Failed to load additional details. Please try again later.');
@@ -407,36 +415,26 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 <Music className="h-6 w-6 text-primary" />
                 <h2 className="text-2xl font-bold">Theme Songs</h2>
               </div>
-              <div className="grid gap-4">
-                {themeSongs.map((theme) => {
-                  const songTitle = theme.song?.title || 'Unknown Title';
-                  const artists = theme.song?.artists?.map(a => a.name).join(', ') || '';
-                  const searchQuery = `${anime.title} ${theme.type}${theme.sequence || ''} ${songTitle} ${artists}`.trim();
-                  // Direct YouTube search that auto-plays first result
-                  const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
-                  
-                  return (
-                    <a
-                      key={theme.id}
-                      href={youtubeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary/30 to-accent/30 rounded-xl hover:from-primary/40 hover:to-accent/40 transition-all duration-200 hover:shadow-glow hover:scale-[1.02] text-left group border-2 border-primary/40 hover:border-primary"
-                    >
-                      <div className="bg-primary/20 px-3 py-2 rounded-lg font-bold text-primary whitespace-nowrap group-hover:bg-primary/30 transition-colors">
-                        {theme.type}{theme.sequence || ''}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                          {songTitle}
-                          {artists && <> by {artists}</>}
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1">Click to play on YouTube</p>
-                      </div>
-                      <Music className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </a>
-                  );
-                })}
+              <div className="space-y-4">
+                {themeSongs.map((theme, index) => (
+                  <div key={theme.id} className="p-4 bg-secondary/20 rounded-lg">
+                    <ThemeSongPlayer
+                      theme={theme}
+                      onNext={() => {
+                        if (index < themeSongs.length - 1) {
+                          setThemeSongs([...themeSongs]); // Force re-render
+                        }
+                      }}
+                      onPrevious={() => {
+                        if (index > 0) {
+                          setThemeSongs([...themeSongs]); // Force re-render
+                        }
+                      }}
+                      hasNext={index < themeSongs.length - 1}
+                      hasPrevious={index > 0}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}

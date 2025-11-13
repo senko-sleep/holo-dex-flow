@@ -225,20 +225,87 @@ export const animeApi = {
     }
   },
 
-  // Get theme songs from AnimeThemes API
-  async getThemeSongs(animeTitle: string): Promise<ThemeSong[]> {
+  // Get theme songs from AnimeThemes API with MAL ID support
+  async getThemeSongs(animeTitle: string, malId?: number): Promise<ThemeSong[]> {
     try {
-      const searchQuery = encodeURIComponent(animeTitle.replace(/[:|-]/g, ' '));
-      const response = await fetch(
-        `${ANIMETHEMES_BASE_URL}/anime?filter[name]=${searchQuery}&include=animethemes.animethemeentries.videos,animethemes.song.artists`
-      );
-      const data = await response.json();
-      
-      if (data.anime && data.anime.length > 0) {
-        const anime = data.anime[0];
-        return anime.animethemes || [];
+      // Define interfaces for API response
+      interface AnimeThemeVideo {
+        id: number;
+        basename: string;
+        filename: string;
+        link: string;
+        audio?: string;
+        quality?: string;
+        tags: string[];
       }
-      return [];
+
+      interface AnimeThemeEntry {
+        videos?: AnimeThemeVideo[];
+      }
+
+      interface AnimeThemeSongArtist {
+        name: string;
+      }
+
+      interface AnimeThemeSong {
+        title: string;
+        artists?: AnimeThemeSongArtist[];
+      }
+
+      interface AnimeTheme {
+        id: number;
+        type: string;
+        sequence: number | null;
+        slug: string;
+        song: AnimeThemeSong;
+        animethemeentries: AnimeThemeEntry[];
+      }
+
+      interface AnimeThemesAnime {
+        id: number;
+        animethemes: AnimeTheme[];
+      }
+
+      // Try to find by MAL ID first (more accurate)
+      const searchUrl = malId 
+        ? `${ANIMETHEMES_BASE_URL}/anime?filter[has]=resources&filter[site]=myanimelist&filter[external_id]=${malId}&include=animethemes.animethemeentries.videos,animethemes.song.artists`
+        : `${ANIMETHEMES_BASE_URL}/anime?filter[text]=${encodeURIComponent(animeTitle.replace(/[:|-]/g, ' '))}&include=animethemes.animethemeentries.videos,animethemes.song.artists`;
+      
+      const response = await fetch(searchUrl);
+      const { anime = [] } = await response.json() as { anime: AnimeThemesAnime[] };
+      
+      if (anime.length === 0 && malId) {
+        // Fall back to title search if MAL ID search fails
+        return this.getThemeSongs(animeTitle);
+      }
+
+      const themes = anime.flatMap((a: AnimeThemesAnime) => 
+        (a.animethemes || []).map((theme: AnimeTheme) => ({
+          id: theme.id,
+          type: theme.type === 'OP' ? 'OP' : 'ED',
+          sequence: theme.sequence || 1,
+          slug: theme.slug,
+          song: {
+            title: theme.song?.title || 'Unknown',
+            artists: theme.song?.artists?.map((artist: AnimeThemeSongArtist) => ({ 
+              name: artist.name 
+            })) || []
+          },
+          videos: theme.animethemeentries?.flatMap((entry: AnimeThemeEntry) => 
+            entry.videos?.map((v: AnimeThemeVideo) => ({
+              id: v.id,
+              basename: v.basename,
+              filename: v.filename,
+              link: v.link,
+              audio: v.audio,
+              quality: v.quality,
+              tags: v.tags || []
+            })) || []
+          ) || []
+        }))
+      );
+
+      return themes;
     } catch (error) {
       console.error('Error fetching theme songs:', error);
       return [];
