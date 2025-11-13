@@ -115,24 +115,26 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 />
               </div>
               <div className="flex-1 space-y-6">
-                <h1 className="text-3xl font-bold tracking-tight">
-                  {anime.title_english || anime.title}
-                </h1>
-                {anime.title_english && (
-                  <p className="text-lg md:text-xl text-muted-foreground">{anime.title}</p>
-                )}
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight mb-3">
+                    {anime.title_english || anime.title}
+                  </h1>
+                  {anime.title_english && (
+                    <p className="text-lg text-muted-foreground">{anime.title}</p>
+                  )}
+                </div>
                 
-                {/* Primary Stats */}
+                {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {anime.score && (
-                    <div className="bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-primary/50 rounded-xl p-3 text-center hover:from-primary/40 hover:to-accent/40 hover:border-primary transition-all hover:scale-105 cursor-pointer">
+                    <div className="bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-primary/50 rounded-xl p-3 text-center hover:from-primary/40 hover:to-accent/40 hover:border-primary transition-all">
                       <Star className="h-5 w-5 fill-primary text-primary mx-auto mb-1" />
                       <div className="font-bold text-xl text-foreground">{anime.score}</div>
                       <div className="text-xs text-muted-foreground">Score</div>
                     </div>
                   )}
                   {anime.type && (
-                    <div className="bg-gradient-to-br from-accent/30 to-primary/30 border-2 border-accent/50 rounded-xl p-3 text-center hover:from-accent/40 hover:to-primary/40 hover:border-accent transition-all hover:scale-105 cursor-pointer">
+                    <div className="bg-gradient-to-br from-accent/30 to-primary/30 border-2 border-accent/50 rounded-xl p-3 text-center hover:from-accent/40 hover:to-primary/40 hover:border-accent transition-all">
                       {anime.type === 'TV' ? <Tv className="h-5 w-5 text-accent mx-auto mb-1" /> : 
                        anime.type === 'Movie' ? <Film className="h-5 w-5 text-accent mx-auto mb-1" /> :
                        <PlayCircle className="h-5 w-5 text-accent mx-auto mb-1" />}
@@ -141,14 +143,14 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                     </div>
                   )}
                   {anime.episodes && (
-                    <div className="bg-gradient-to-br from-primary/20 to-accent/20 border-2 border-primary/40 rounded-xl p-3 text-center hover:from-primary/30 hover:to-accent/30 hover:border-primary transition-all hover:scale-105 cursor-pointer">
+                    <div className="bg-gradient-to-br from-primary/20 to-accent/20 border-2 border-primary/40 rounded-xl p-3 text-center hover:from-primary/30 hover:to-accent/30 hover:border-primary transition-all">
                       <PlayCircle className="h-5 w-5 text-primary mx-auto mb-1" />
                       <div className="font-bold text-xl text-foreground">{anime.episodes}</div>
                       <div className="text-xs text-muted-foreground">Episodes</div>
                     </div>
                   )}
                   {anime.status && (
-                    <div className="bg-gradient-to-br from-accent/20 to-primary/20 border-2 border-accent/40 rounded-xl p-3 text-center hover:from-accent/30 hover:to-primary/30 hover:border-accent transition-all hover:scale-105 cursor-pointer">
+                    <div className="bg-gradient-to-br from-accent/20 to-primary/20 border-2 border-accent/40 rounded-xl p-3 text-center hover:from-accent/30 hover:to-primary/30 hover:border-accent transition-all">
                       <Clock className="h-5 w-5 text-accent mx-auto mb-1" />
                       <div className="font-bold text-sm text-foreground">{anime.status}</div>
                       <div className="text-xs text-muted-foreground">Status</div>
@@ -157,172 +159,225 @@ export const AnimeModal = ({ anime, onClose }: AnimeModalProps) => {
                 </div>
 
                 {/* Synopsis */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                     <Info className="h-5 w-5 text-primary" />
+                <div className="bg-secondary/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Info className="h-5 w-5 text-primary flex-shrink-0" />
                     <h2 className="text-xl font-semibold">Synopsis</h2>
                   </div>
-                  <div className="bg-secondary/20 rounded-lg p-4">
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <p className="text-foreground leading-relaxed whitespace-pre-line">
-                        {anime.synopsis || 'No synopsis available for this anime.'}
-                      </p>
-                    </div>
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <p className="text-foreground leading-relaxed whitespace-pre-line">
+                      {anime.synopsis || 'No synopsis available for this anime.'}
+                    </p>
                   </div>
                 </div>
 
-                {/* Statistics */}
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                        <Award className="h-5 w-5 text-primary" />
-                        Ratings & Popularity
-                      </h3>
+                {/* Airing Information */}
+                {(anime.aired || anime.season || anime.year || anime.broadcast) && (
+                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/20 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Calendar className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-bold">Airing Information</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Left Column */}
                       <div className="space-y-3">
-                        {anime.score && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Score</span>
-                            <span className="font-bold text-xl text-primary flex items-center gap-2">
-                              <Star className="h-5 w-5 fill-primary" />
-                              {anime.score} / 10
+                        {(anime.season || anime.year) && (
+                          <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              <span>Season</span>
+                            </div>
+                            <span className="font-medium text-foreground">
+                              {anime.season ? `${anime.season.charAt(0).toUpperCase() + anime.season.slice(1)}` : 'N/A'}{anime.year ? ` ${anime.year}` : ''}
                             </span>
                           </div>
                         )}
-                        {anime.rank && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Rank</span>
-                            <span className="font-bold text-accent">#{anime.rank}</span>
+                        
+                        {anime.aired?.from && (
+                          <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              <span>Started Airing</span>
+                            </div>
+                            <span className="font-medium text-foreground">
+                              {new Date(anime.aired.from).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
                           </div>
                         )}
-                        {anime.popularity && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Popularity</span>
-                            <span className="font-bold text-accent">#{anime.popularity}</span>
+                      </div>
+                      
+                      {/* Right Column */}
+                      <div className="space-y-3">
+                        {anime.aired?.to && (
+                          <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              <span>Finished Airing</span>
+                            </div>
+                            <span className="font-medium text-foreground">
+                              {new Date(anime.aired.to).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
                           </div>
                         )}
-                        {anime.members && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Members</span>
-                            <span className="font-bold">{anime.members.toLocaleString()}</span>
-                          </div>
-                        )}
-                        {anime.favorites && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Favorites</span>
-                            <span className="font-bold text-primary">{anime.favorites.toLocaleString()}</span>
+                        
+                        {anime.broadcast?.string && (
+                          <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Tv className="h-4 w-4" />
+                              <span>Broadcast</span>
+                            </div>
+                            <span className="font-medium text-foreground text-right">
+                              {anime.broadcast.string}
+                            </span>
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                        <Info className="h-5 w-5 text-accent" />
-                        Additional Info
-                      </h3>
-                      <div className="space-y-3">
-                        {anime.type && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Type</span>
-                            <span className="font-bold">{anime.type}</span>
-                          </div>
-                        )}
-                        {anime.source && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Source</span>
-                            <span className="font-bold capitalize">{anime.source}</span>
-                          </div>
-                        )}
-                        {anime.rating && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Rating</span>
-                            <span className="font-bold">{anime.rating}</span>
-                          </div>
-                        )}
-                        {anime.duration && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Duration</span>
-                            <span className="font-bold">{anime.duration}</span>
-                          </div>
-                        )}
-                        {anime.broadcast?.string && (
-                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                            <span className="text-muted-foreground">Broadcast</span>
-                            <span className="font-bold text-sm">{anime.broadcast.string}</span>
-                          </div>
-                        )}
+                    {/* Airing Duration */}
+                    {anime.aired?.from && anime.aired?.to && (
+                      <div className="mt-4 text-center text-sm text-muted-foreground">
+                        <span className="inline-flex items-center">
+                          <Clock className="h-3.5 w-3.5 mr-1" />
+                          {(() => {
+                            const start = new Date(anime.aired.from);
+                            const end = new Date(anime.aired.to);
+                            const diffTime = Math.abs(end.getTime() - start.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            const diffMonths = Math.ceil(diffDays / 30.44);
+                            const diffYears = Math.floor(diffMonths / 12);
+                            const remainingMonths = diffMonths % 12;
+                            
+                            let duration = '';
+                            if (diffYears > 0) {
+                              duration += `${diffYears} ${diffYears === 1 ? 'year' : 'years'}`;
+                              if (remainingMonths > 0) {
+                                duration += `, ${remainingMonths} ${remainingMonths === 1 ? 'month' : 'months'}`;
+                              }
+                            } else {
+                              duration = `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'}`;
+                            }
+                            
+                            return `Aired for ${duration} (${anime.episodes || '?'} episodes)`;
+                          })()}
+                        </span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Airing Information */}
-                {(anime.aired || anime.season || anime.year) && (
-                  <div className="bg-secondary/30 rounded-xl p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold mb-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span>Airing Information</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                      {anime.season && anime.year && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Season:</span>
-                          <span className="font-medium capitalize">{anime.season} {anime.year}</span>
-                        </div>
-                      )}
-                      {anime.aired?.from && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">From:</span>
-                          <span className="font-medium">{new Date(anime.aired.from).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      {anime.aired?.to && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">To:</span>
-                          <span className="font-medium">{new Date(anime.aired.to).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* Studios, Genres, Themes - Compact Row */}
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    {anime.studios && anime.studios.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-4 w-4 text-accent flex-shrink-0" />
-                        {anime.studios.slice(0, 3).map((studio) => (
-                          <Badge key={studio.mal_id} variant="secondary" className="bg-accent/10 text-accent border-accent/20">
-                            {studio.name}
-                          </Badge>
-                        ))}
-                        {anime.studios.length > 3 && <span className="text-muted-foreground">+{anime.studios.length - 3}</span>}
-                      </div>
-                    )}
-                    {anime.genres && anime.genres.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
-                        {anime.genres.slice(0, 4).map((genre) => (
-                          <Badge key={genre.mal_id} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-                            {genre.name}
-                          </Badge>
-                        ))}
-                        {anime.genres.length > 4 && <span className="text-muted-foreground">+{anime.genres.length - 4}</span>}
-                      </div>
-                    )}
-                    {anime.themes && anime.themes.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Award className="h-4 w-4 text-accent flex-shrink-0" />
-                        {anime.themes.slice(0, 3).map((theme) => (
-                          <Badge key={theme.mal_id} variant="outline" className="border-accent/30 text-accent">
-                            {theme.name}
-                          </Badge>
-                        ))}
-                        {anime.themes.length > 3 && <span className="text-muted-foreground">+{anime.themes.length - 3}</span>}
-                      </div>
-                    )}
+                {/* Tags Row: Studios, Genres, Themes */}
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  {anime.studios && anime.studios.length > 0 && (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Building2 className="h-4 w-4 text-accent flex-shrink-0" />
+                      {anime.studios.slice(0, 3).map((studio) => (
+                        <Badge key={studio.mal_id} variant="secondary" className="bg-accent/10 text-accent border-accent/20">
+                          {studio.name}
+                        </Badge>
+                      ))}
+                      {anime.studios.length > 3 && <span className="text-muted-foreground">+{anime.studios.length - 3}</span>}
+                    </div>
+                  )}
+                  {anime.genres && anime.genres.length > 0 && (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
+                      {anime.genres.slice(0, 4).map((genre) => (
+                        <Badge key={genre.mal_id} className="bg-primary/10 text-primary border-primary/20">
+                          {genre.name}
+                        </Badge>
+                      ))}
+                      {anime.genres.length > 4 && <span className="text-muted-foreground">+{anime.genres.length - 4}</span>}
+                    </div>
+                  )}
+                  {anime.themes && anime.themes.length > 0 && (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Award className="h-4 w-4 text-accent flex-shrink-0" />
+                      {anime.themes.slice(0, 3).map((theme) => (
+                        <Badge key={theme.mal_id} variant="outline" className="border-accent/30 text-accent">
+                          {theme.name}
+                        </Badge>
+                      ))}
+                      {anime.themes.length > 3 && <span className="text-muted-foreground">+{anime.themes.length - 3}</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Detailed Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Award className="h-5 w-5 text-primary" />
+                      Ratings & Popularity
+                    </h3>
+                    <div className="space-y-3">
+                      {anime.rank && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Rank</span>
+                          <span className="font-bold text-accent">#{anime.rank}</span>
+                        </div>
+                      )}
+                      {anime.popularity && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Popularity</span>
+                          <span className="font-bold text-accent">#{anime.popularity}</span>
+                        </div>
+                      )}
+                      {anime.members && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Members</span>
+                          <span className="font-bold">{anime.members.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {anime.favorites && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Favorites</span>
+                          <span className="font-bold text-primary">{anime.favorites.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Info className="h-5 w-5 text-accent" />
+                      Additional Info
+                    </h3>
+                    <div className="space-y-3">
+                      {anime.source && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Source</span>
+                          <span className="font-bold capitalize">{anime.source}</span>
+                        </div>
+                      )}
+                      {anime.rating && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Rating</span>
+                          <span className="font-bold">{anime.rating}</span>
+                        </div>
+                      )}
+                      {anime.duration && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Duration</span>
+                          <span className="font-bold">{anime.duration}</span>
+                        </div>
+                      )}
+                      {anime.broadcast?.string && (
+                        <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                          <span className="text-muted-foreground">Broadcast</span>
+                          <span className="font-bold text-sm">{anime.broadcast.string}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
