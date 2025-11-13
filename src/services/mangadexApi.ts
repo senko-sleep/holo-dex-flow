@@ -84,6 +84,7 @@ export const MANGA_CONTENT_RATINGS = [
   { value: 'suggestive', label: 'Suggestive' },
   { value: 'erotica', label: 'Erotica' },
   { value: 'pornographic', label: 'Pornographic' },
+  { value: 'hentai', label: 'Hentai' }
 ];
 
 // MangaDex status options
@@ -135,11 +136,21 @@ export const mangadexApi = {
           params.append('includes[]', include);
         });
 
-        // Add content ratings
-        const contentRatings = filters?.contentRating || ['safe', 'suggestive', 'erotica'];
+        // Add content ratings - include all content ratings by default
+        const contentRatings = filters?.contentRating || ['safe', 'suggestive', 'erotica', 'pornographic', 'hentai'];
         contentRatings.forEach(rating => {
           params.append('contentRating[]', rating);
         });
+
+        // Add authentication header if available
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
+        
+        if (MANGADEX_CLIENT_ID) {
+          headers['Authorization'] = `Bearer ${MANGADEX_CLIENT_ID}`;
+        }
 
         // Add filters
         if (filters?.includedTags) {
@@ -161,10 +172,7 @@ export const mangadexApi = {
         }
 
         const response = await fetch(`${MANGADEX_BASE_URL}/manga?${params.toString()}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
-          }
+          headers: headers,
         });
 
         if (!response.ok) {
