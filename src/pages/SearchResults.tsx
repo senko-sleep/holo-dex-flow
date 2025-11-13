@@ -15,7 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tv, BookOpen, Users, Grid3x3, List, SortAsc, X } from 'lucide-react';
+import { Tv, BookOpen, Users, SortAsc, X } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { applySeasonalTheme } from '@/lib/seasonalTheme';
 
@@ -43,7 +43,6 @@ const SearchResults = () => {
     const saved = localStorage.getItem('searchResultsTab');
     return saved && ['anime', 'manga', 'characters'].includes(saved) ? saved : 'anime';
   });
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<string>('relevance');
   const [mangaFilters, setMangaFilters] = useState<MangaFilters>({
     contentRating: ['safe', 'suggestive'],
@@ -237,22 +236,13 @@ const SearchResults = () => {
                 <SortAsc className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background">
                 <SelectItem value="relevance">Relevance</SelectItem>
                 <SelectItem value="rating">Rating</SelectItem>
                 <SelectItem value="year">Year</SelectItem>
                 <SelectItem value="title">Title</SelectItem>
               </SelectContent>
             </Select>
-            
-            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')}>
-              <ToggleGroupItem value="grid" aria-label="Grid view">
-                <Grid3x3 className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="list" aria-label="List view">
-                <List className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
             
             <SearchFilters onFiltersChange={handleFiltersChange} currentFilters={mangaFilters} currentSection={activeTab as 'anime' | 'manga' | 'characters'} />
           </div>
