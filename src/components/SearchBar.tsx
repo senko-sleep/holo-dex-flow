@@ -392,9 +392,11 @@ export const SearchBar = ({ onAnimeSelect, currentSection }: SearchBarProps) => 
                       <button
                         key={character.mal_id}
                         onClick={() => {
-                          // Could navigate to character page in future
-                          console.log('Character clicked:', character);
-                          clearSearch();
+                          // Navigate to character page
+                          if (character.mal_id) {
+                            navigate(`/character/${character.mal_id}`);
+                            clearSearch();
+                          }
                         }}
                         className="w-full flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-secondary/50 transition-colors text-left"
                       >

@@ -34,17 +34,34 @@ interface JikanAnime {
 
 export const jikanApi = {
   async searchAnime(query: string, page = 1, limit = 10) {
+    // Don't make API call if query is empty or too short
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
     const cacheKey = `jikan_search_${query}_${page}_${limit}`;
     const cached = cache.get<JikanAnime[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const response = await fetch(
-        `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}&sfw=false`
-      );
+      const url = new URL('https://api.jikan.moe/v4/anime');
+      url.searchParams.append('q', query.trim());
+      url.searchParams.append('page', page.toString());
+      url.searchParams.append('limit', Math.min(limit, 25).toString()); // Limit max results to 25 per page
+      url.searchParams.append('sfw', 'false');
+      
+      console.log(`Fetching from Jikan API: ${url.toString()}`);
+      const response = await fetch(url.toString());
       
       if (!response.ok) {
-        throw new Error(`Jikan API error: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Jikan API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url.toString(),
+          error: errorData
+        });
+        throw new Error(`Jikan API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -54,7 +71,12 @@ export const jikanApi = {
       cache.set(cacheKey, results, 60 * 60 * 1000);
       return results;
     } catch (error) {
-      console.error('Error searching Jikan API:', error);
+      console.error('Error searching Jikan API:', {
+        error,
+        query,
+        page,
+        limit
+      });
       return [];
     }
   },

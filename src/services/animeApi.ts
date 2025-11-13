@@ -255,17 +255,39 @@ export const animeApi = {
     },
     page = 1
   ): Promise<Character[]> {
-    // Allow search with just filters (no query)
-    const hasFilters = filters && (
-      (filters.role && filters.role.length > 0) ||
-      filters.sort
-    );
-    // Return empty if no query AND no filters
-    if (!query?.trim() && !hasFilters) return [];
     try {
-      return await anilistApi.searchCharacters(query, limit, filters, page);
+      // Handle case when a character object is passed directly (from click)
+      if (typeof query === 'object' && query !== null) {
+        const character = query as unknown as Character;
+        if (character.mal_id) {
+          return [character];
+        }
+        return [];
+      }
+
+      // Handle string query
+      if (typeof query === 'string') {
+        // Check if we have any filters
+        const hasFilters = filters && (
+          (filters.role && filters.role.length > 0) ||
+          filters.sort
+        );
+        
+        // Return empty if no query AND no filters
+        if (!query.trim() && !hasFilters) return [];
+        
+        return await anilistApi.searchCharacters(query, limit, filters, page);
+      }
+
+      return [];
     } catch (error) {
-      console.error('Error searching characters:', error);
+      console.error('Error searching characters:', {
+        error,
+        query,
+        filters,
+        page,
+        limit
+      });
       return [];
     }
   },
