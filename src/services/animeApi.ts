@@ -282,7 +282,7 @@ export const animeApi = {
       const themes = anime.flatMap((a: AnimeThemesAnime) => 
         (a.animethemes || []).map((theme: AnimeTheme) => ({
           id: theme.id,
-          type: theme.type === 'OP' ? 'OP' : 'ED',
+          type: (theme.type === 'OP' ? 'OP' : 'ED') as 'OP' | 'ED',
           sequence: theme.sequence || 1,
           slug: theme.slug,
           song: {
@@ -374,5 +374,30 @@ export const animeApi = {
       console.error('Error fetching top characters:', error);
       return [];
     }
+  },
+
+  // Get the best audio URL from a theme song (prioritizes dedicated audio files)
+  getBestAudioUrl(theme: ThemeSong): string | null {
+    if (!theme.videos || theme.videos.length === 0) {
+      return null;
+    }
+
+    // Sort videos to get the best quality with audio
+    const bestVideo = theme.videos
+      .filter(v => v.audio || v.link)
+      .sort((a, b) => {
+        // Prioritize videos with dedicated audio
+        if (a.audio && !b.audio) return -1;
+        if (!a.audio && b.audio) return 1;
+        
+        // Then sort by quality
+        const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
+        const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
+        const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
+        
+        return bQuality - aQuality;
+      })[0];
+
+    return bestVideo?.audio || bestVideo?.link || null;
   },
 };

@@ -83,6 +83,16 @@ export interface ThemeSong {
     name: string;
     slug: string;
   };
+  videos?: Array<{
+    id?: number;
+    basename?: string;
+    filename?: string;
+    link: string;
+    audio?: string;
+    quality?: string;
+    duration?: number;
+    tags?: string[];
+  }>;
   animethemeentries?: Array<{
     videos?: Array<{
       basename: string;

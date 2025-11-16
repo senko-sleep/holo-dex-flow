@@ -5,6 +5,14 @@ import { BookOpen, Heart } from 'lucide-react';
 import { favorites } from '@/lib/favorites';
 import { useState } from 'react';
 
+// Helper to generate responsive image URLs for MangaDex covers
+const generateCoverSrcSet = (coverUrl: string): string => {
+  if (!coverUrl || coverUrl.includes('placeholder')) return '';
+  // MangaDex supports .256.jpg, .512.jpg, and full resolution
+  const baseUrl = coverUrl.replace(/\.\d+\.jpg$/, '');
+  return `${baseUrl}.256.jpg 256w, ${baseUrl}.512.jpg 512w`;
+};
+
 interface MangaCardProps {
   manga: Manga;
   onClick: () => void;
@@ -14,6 +22,8 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
   const [isFavorite, setIsFavorite] = useState(
     favorites.isFavorite(manga.id, 'manga')
   );
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -36,12 +46,27 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
       className="group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-glow hover:scale-110 hover:-translate-y-2 animate-scale-in border-2 border-accent/40 hover:border-accent active:scale-105"
       onClick={onClick}
     >
-      <div className="aspect-[2/3] relative overflow-hidden">
+      <div className="aspect-[2/3] relative overflow-hidden bg-secondary/20">
+        {/* Placeholder skeleton while loading */}
+        {!imageLoaded && !imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-secondary/30 to-secondary/10 animate-pulse" />
+        )}
+        
+        {/* Main image with high quality */}
         <img
-          src={manga.coverUrl}
+          src={imageError ? '/placeholder.svg' : manga.coverUrl}
+          srcSet={!imageError ? generateCoverSrcSet(manga.coverUrl) : ''}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           alt={manga.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
           loading="lazy"
+          onLoad={() => setImageLoaded(true)}
+          onError={() => {
+            setImageError(true);
+            setImageLoaded(true);
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         

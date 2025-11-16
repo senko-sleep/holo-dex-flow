@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MangaChapterImages, MangaChapter } from '@/types/manga';
 import { mangadexApi } from '@/services/mangadexApi';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Settings } from 'lucide-react';
+import { ArrowLeft, Loader2, Settings, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { applySeasonalTheme } from '@/lib/seasonalTheme';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -137,6 +137,7 @@ const MangaReader = () => {
   useHotkeys('right, d', goToNextPage, { enabled: !isLoading });
   useHotkeys('left, a', goToPreviousPage, { enabled: !isLoading });
   useHotkeys('s', () => setShowSettings(prev => !prev), { enabled: !isLoading });
+  useHotkeys('escape', () => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1), { enabled: !isLoading });
 
   // Auto-hide controls
   useEffect(() => {
@@ -206,8 +207,8 @@ const MangaReader = () => {
         <div className="text-center space-y-4">
           <p className="text-white text-lg">Failed to load chapter</p>
           <div className="flex gap-4 justify-center">
-            <Button onClick={() => navigate(-1)} variant="outline">
-              <ArrowLeft className="h-4 w-4 mr-2" /> Go Back
+            <Button onClick={() => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1)} variant="outline">
+              <X className="h-4 w-4 mr-2" /> Close
             </Button>
             <Button onClick={() => chapterId && loadChapter(chapterId)} variant="default">
               Retry
@@ -238,10 +239,10 @@ const MangaReader = () => {
               variant="ghost"
               size="sm"
               onClick={() => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1)}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:bg-white/10 hover:text-red-400 transition-colors"
+              title="Close reader (Esc)"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              <X className="h-5 w-5" />
             </Button>
             
             <span className="text-white text-sm">

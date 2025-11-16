@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, X } from 'lucide-react';
 import { ThemeSong } from '@/types/anime';
 import { Slider } from '@/components/ui/slider';
+import { animeApi } from '@/services/animeApi';
 
 interface AudioPlayerProps {
   song: ThemeSong;
@@ -16,7 +17,8 @@ export const AudioPlayer = ({ song, onClose }: AudioPlayerProps) => {
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const audioUrl = song.animethemeentries?.[0]?.videos?.[0]?.audio;
+  // Get the best audio URL using the same API as AnimeModal
+  const audioUrl = animeApi.getBestAudioUrl(song);
 
   useEffect(() => {
     const audio = audioRef.current;

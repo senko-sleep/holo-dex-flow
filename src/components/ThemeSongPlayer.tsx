@@ -1,29 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Music } from 'lucide-react';
-
-export interface ThemeSongVideo {
-  id: number;
-  basename: string;
-  filename: string;
-  link: string;
-  audio?: string;
-  quality?: string;
-  tags: string[];
-}
-
-export interface ThemeSong {
-  id: number;
-  type: 'OP' | 'ED';
-  sequence: number;
-  slug: string;
-  song: {
-    title: string;
-    artists: Array<{
-      name: string;
-    }>;
-  };
-  videos: ThemeSongVideo[];
-}
+import { Play, Pause, Volume2, VolumeX, Music, SkipBack, SkipForward } from 'lucide-react';
+import { ThemeSong } from '@/types/anime';
+import { animeApi } from '@/services/animeApi';
 
 interface ThemeSongPlayerProps {
   theme: ThemeSong;
@@ -47,8 +25,9 @@ export const ThemeSongPlayer = ({
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Get the best quality video with audio
-  const bestVideo = theme.videos.length > 0 
+  // Get the best quality video with audio using the same API
+  const audioUrl = animeApi.getBestAudioUrl(theme);
+  const bestVideo = theme.videos && theme.videos.length > 0 
     ? theme.videos
         .filter(v => v.audio || v.link)
         .sort((a, b) => {
@@ -135,51 +114,45 @@ export const ThemeSongPlayer = ({
 
   if (!bestVideo || theme.videos.length === 0) {
     return (
-      <div className="bg-card rounded-xl p-4 shadow-lg flex items-center justify-center text-muted-foreground">
-        <Music className="mr-2 h-5 w-5" />
-        <span>No audio available for this theme</span>
+      <div className="flex items-center justify-center py-3 text-muted-foreground text-sm">
+        <Music className="mr-2 h-4 w-4" />
+        <span>No audio available</span>
       </div>
     );
   }
 
-
   return (
-    <div className="bg-card rounded-xl p-4 shadow-lg">
+    <div className="group">
       <audio 
         ref={audioRef} 
         src={bestVideo.audio || bestVideo.link} 
         preload="metadata"
       />
       
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">
-          {theme.song.title} {theme.type}{theme.sequence > 1 ? ` ${theme.sequence}` : ''}
+      {/* Song Info */}
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold leading-tight text-foreground">
+          {theme.song.title}
         </h3>
-        {theme.song.artists.length > 0 && (
-          <p className="text-sm text-muted-foreground mb-3">
-            by {theme.song.artists.map(a => a.name).join(', ')}
-          </p>
-        )}
-        {bestVideo && bestVideo.quality && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Quality: {bestVideo.quality}
-          </p>
-        )}
-        
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+            theme.type === 'OP' 
+              ? 'bg-amber-500/20 text-amber-500' 
+              : 'bg-purple-500/20 text-purple-500'
+          }`}>
+            {theme.type}{theme.sequence > 1 ? ` ${theme.sequence}` : ''}
+          </span>
+          {theme.song.artists.length > 0 && (
+            <p className="text-xs text-muted-foreground truncate">
+              {theme.song.artists.map(a => a.name).join(', ')}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="flex justify-center mb-4">
-        <button
-          onClick={togglePlay}
-          className="p-3 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-colors"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-0.5" />}
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-muted-foreground w-10">
+      {/* Progress Bar */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-muted-foreground w-8 text-right">
           {formatTime(currentTime)}
         </span>
         <input
@@ -188,34 +161,71 @@ export const ThemeSongPlayer = ({
           max={duration || 100}
           value={currentTime}
           onChange={handleSeek}
-          className="flex-1 h-2 rounded-full appearance-none bg-accent/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+          className="flex-1 h-1 rounded-full appearance-none bg-secondary/50 hover:bg-secondary transition-colors [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md"
         />
-        <span className="text-xs text-muted-foreground w-10 text-right">
+        <span className="text-xs text-muted-foreground w-8">
           {formatTime(duration)}
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button 
-          onClick={toggleMute} 
-          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted || volume === 0 ? (
-            <VolumeX size={18} />
-          ) : (
-            <Volume2 size={18} />
-          )}
-        </button>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value={isMuted ? 0 : volume}
-          onChange={handleVolumeChange}
-          className="w-24 h-1 rounded-full appearance-none bg-accent/20 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
-        />
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        {/* Left: Previous & Play/Pause */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onPrevious}
+            disabled={!hasPrevious}
+            className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            aria-label="Previous"
+          >
+            <SkipBack size={16} />
+          </button>
+          
+          <button
+            onClick={togglePlay}
+            className="p-1.5 text-foreground hover:text-primary transition-colors"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <Pause size={18} className="fill-current" />
+            ) : (
+              <Play size={18} className="fill-current ml-0.5" />
+            )}
+          </button>
+
+          <button
+            onClick={onNext}
+            disabled={!hasNext}
+            className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            aria-label="Next"
+          >
+            <SkipForward size={16} />
+          </button>
+        </div>
+
+        {/* Right: Volume */}
+        <div className="flex items-center gap-1.5">
+          <button 
+            onClick={toggleMute} 
+            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted || volume === 0 ? (
+              <VolumeX size={16} />
+            ) : (
+              <Volume2 size={16} />
+            )}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : volume}
+            onChange={handleVolumeChange}
+            className="w-20 h-1 rounded-full appearance-none bg-secondary/50 hover:bg-secondary transition-colors [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md"
+          />
+        </div>
       </div>
     </div>
   );

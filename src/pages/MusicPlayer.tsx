@@ -19,7 +19,7 @@ interface Track {
   id: string;
   title: string;
   anime: string;
-  type: 'OP' | 'ED' | 'OST';
+  type: 'OP' | 'ED' | 'Insert Song' | 'Image Song';
   number: number;
   animeImage: string;
   animeId: number;
@@ -82,7 +82,7 @@ const MusicPlayer = () => {
           const animeList = await loadPopularAnime();
           // Load themes for the first anime by default
           if (animeList.length > 0) {
-            await loadAnimeThemes(animeList[0].id, 0);
+            await loadAnimeThemes(animeList[0].id, 0, animeList[0]);
           }
         }
       } catch (error) {
@@ -118,7 +118,7 @@ const MusicPlayer = () => {
       const animeList = anime.map(a => ({
         id: a.mal_id,
         title: a.title,
-        image: a.images.jpg.large_image_url,
+        image: a.images.jpg.large_image_url || a.images.jpg.image_url,
         themes: [],
         isExpanded: false,
         isLoading: false
@@ -147,7 +147,7 @@ const MusicPlayer = () => {
       }
       
       try {
-        const results = await animeApi.searchAnime(query, 1, 5);
+        const results = await animeApi.searchAnime(query, 1);
         setSearchSuggestions(results.map(a => ({
           id: a.mal_id,
           title: a.title
@@ -173,7 +173,7 @@ const MusicPlayer = () => {
         if (anime) results = [anime];
       } else {
         // Search by query - increase limit to get more results
-        results = await animeApi.searchAnime(query, 1, 20);
+        results = await animeApi.searchAnime(query, 1);
       }
       
       const animeList = results.map(a => ({
@@ -202,7 +202,7 @@ const MusicPlayer = () => {
   }, 500), []);
 
   // Load themes for a specific anime
-  const loadAnimeThemes = async (animeId: number, index: number) => {
+  const loadAnimeThemes = async (animeId: number, index: number, animeData?: AnimeWithThemes) => {
     try {
       setAnimeWithThemes(prev => {
         const updated = [...prev];
@@ -211,8 +211,12 @@ const MusicPlayer = () => {
         return updated;
       });
       
-      // Get the anime title first
-      const anime = await animeApi.getAnimeById(animeId);
+      // Use passed anime data or get from state
+      let anime = animeData;
+      if (!anime) {
+        anime = animeWithThemes[index];
+      }
+      
       if (!anime) {
         throw new Error('Anime not found');
       }
@@ -221,7 +225,7 @@ const MusicPlayer = () => {
       const themes = await animeApi.getThemeSongs(anime.title, animeId);
       
       const animeTitle = anime.title;
-      const animeImage = anime.images.jpg.large_image_url;
+      const animeImage = anime.image;
       
       // Update the anime with its themes
       setAnimeWithThemes(prev => {
@@ -267,29 +271,41 @@ const MusicPlayer = () => {
       
       // Add or update tracks from the new themes
       themes.forEach(theme => {
-        theme.animethemeentries?.forEach(entry => {
-          entry.videos?.forEach(video => {
-            if (video.audio || video.link) {
-              const trackId = `${animeId}-${theme.id}-${video.basename || 'video'}`;
-              if (!tracksMap.has(trackId)) {
-                tracksMap.set(trackId, {
-                  id: trackId,
-                  title: theme.song?.title || `${theme.type} ${theme.sequence}`,
-                  anime: animeTitle,
-                  type: theme.type,
-                  number: theme.sequence,
-                  animeImage: animeImage,
-                  animeId: animeId,
-                  themeId: theme.id,
-                  artists: theme.song?.artists,
-                  videoUrl: video.link,
-                  audioUrl: video.audio,
-                  duration: video.duration
-                });
-              }
-            }
-          });
-        });
+        // Use the same audio selection logic as AnimeModal
+        const audioUrl = animeApi.getBestAudioUrl(theme);
+        
+        if (audioUrl) {
+          // Get the best video for additional metadata
+          const videos = theme.videos || [];
+          const bestVideo = videos
+            .filter(v => v.audio || v.link)
+            .sort((a, b) => {
+              if (a.audio && !b.audio) return -1;
+              if (!a.audio && b.audio) return 1;
+              const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
+              const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
+              const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
+              return bQuality - aQuality;
+            })[0];
+
+          const trackId = `${animeId}-${theme.id}-${bestVideo?.basename || bestVideo?.id || 0}`;
+          if (!tracksMap.has(trackId)) {
+            tracksMap.set(trackId, {
+              id: trackId,
+              title: theme.song?.title || `${theme.type} ${theme.sequence}`,
+              anime: animeTitle,
+              type: theme.type,
+              number: theme.sequence,
+              animeImage: animeImage,
+              animeId: animeId,
+              themeId: theme.id,
+              artists: theme.song?.artists,
+              videoUrl: bestVideo?.link,
+              audioUrl: audioUrl,
+              duration: bestVideo?.duration
+            });
+          }
+        }
       });
       
       const newTracks = Array.from(tracksMap.values());
@@ -721,7 +737,7 @@ const MusicPlayer = () => {
                         {anime.themes.length > 0 ? (
                           <div className="divide-y">
                             {anime.themes.map((theme, themeIndex) => {
-                              const videos = theme.animethemeentries?.flatMap(entry => entry.videos || []) || [];
+                              const videos = theme.videos || [];
                               return (
                                 <div key={theme.id} className="p-4 hover:bg-secondary/20 transition-colors">
                                   <div className="flex items-center justify-between">
@@ -730,7 +746,7 @@ const MusicPlayer = () => {
                                         {theme.song?.title || `${theme.type} ${theme.sequence}`}
                                       </div>
                                       <div className="text-sm text-muted-foreground">
-                                        {theme.type} {theme.sequence} • {theme.episode || 'N/A'}
+                                        {theme.type} {theme.sequence}
                                       </div>
                                       {theme.song?.artists && theme.song.artists.length > 0 && (
                                         <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">

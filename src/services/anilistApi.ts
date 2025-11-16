@@ -708,7 +708,7 @@ export const anilistApi = {
     const query = `
       query ($id: Int) {
         Media(id: $id, type: ANIME) {
-          characters(sort: FAVOURITES_DESC, perPage: 8) {
+          characters(sort: FAVOURITES_DESC, perPage: 50) {
             edges {
               role
               node {

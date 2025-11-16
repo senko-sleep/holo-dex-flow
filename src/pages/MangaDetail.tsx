@@ -97,7 +97,7 @@ const MangaDetail = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Manga not found</p>
-          <Button onClick={() => navigate(-1)}>Go Back</Button>
+          <Button onClick={() => navigate('/manga')}>Back to Search</Button>
         </div>
       </div>
     );
@@ -135,10 +135,10 @@ const MangaDetail = () => {
           <Button
             variant="ghost"
             className="text-white hover:text-white/80"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/manga')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            Back to Search
           </Button>
         </div>
       </header>
@@ -147,11 +147,14 @@ const MangaDetail = () => {
         <div className="grid md:grid-cols-[300px,1fr] gap-8">
           {/* Cover and Info */}
           <div>
-            <img
-              src={manga.coverUrl}
-              alt={manga.title}
-              className="w-full rounded-xl shadow-2xl mb-4"
-            />
+            <div className="relative bg-secondary/20 rounded-xl overflow-hidden mb-4">
+              <img
+                src={manga.coverUrl || '/placeholder.svg'}
+                alt={manga.title}
+                className="w-full rounded-xl shadow-2xl"
+                loading="eager"
+              />
+            </div>
             <div className="space-y-3">
               {manga.status && (
                 <div className="flex items-center gap-2">

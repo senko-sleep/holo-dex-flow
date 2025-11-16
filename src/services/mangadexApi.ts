@@ -1,5 +1,7 @@
 import { Manga, MangaChapter, MangaChapterImages } from '@/types/manga';
 import { cache } from '@/lib/cache';
+import { localStorageManager } from '@/lib/localStorage';
+import { fetchMangaDex } from '@/lib/corsProxy';
 
 const MANGADEX_BASE_URL = 'https://api.mangadex.org';
 
@@ -116,192 +118,191 @@ export interface MangaFilters {
 export const mangadexApi = {
   // Search manga with filters
   async searchManga(query: string, filters?: MangaFilters, limit = 20, offset = 0): Promise<Manga[]> {
-    const cacheKey = `search_manga_${query}_${JSON.stringify(filters)}_${limit}_${offset}`;
-    const cached = cache.get<Manga[]>(cacheKey);
-    if (cached) return cached;
-
+    const storageKey = `search_manga_${query}_${JSON.stringify(filters)}_${limit}_${offset}`;
+    
     try {
-      const result = await retryFetch(async () => {
-        await delay(250);
+      // Use localStorage with 24-hour TTL and fallback to API
+      return await localStorageManager.getOrFetch(
+        storageKey,
+        async () => {
+          await delay(250);
 
-        const params = new URLSearchParams();
-        params.append('title', query);
-        params.append('limit', limit.toString());
-        params.append('offset', offset.toString());
+          const params = new URLSearchParams();
+          params.append('title', query);
+          params.append('limit', limit.toString());
+          params.append('offset', offset.toString());
 
-        // Add includes
-        ['cover_art', 'author', 'artist'].forEach(include => {
-          params.append('includes[]', include);
-        });
-
-        // Add content ratings - include safe content by default, and only one explicit rating if specified
-        const defaultContentRatings = ['safe', 'suggestive', 'erotica'];
-        const explicitRatings = filters?.contentRating?.filter(r => ['pornographic', 'hentai'].includes(r)) || [];
-        
-        // Use the first explicit rating if specified, or default to safe content
-        const contentRatings = explicitRatings.length > 0 
-          ? [...defaultContentRatings, explicitRatings[0]]
-          : defaultContentRatings;
-          
-        contentRatings.forEach(rating => {
-          params.append('contentRating[]', rating);
-        });
-
-        // Add authentication header if available
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        };
-        
-        if (MANGADEX_CLIENT_ID) {
-          headers['Authorization'] = `Bearer ${MANGADEX_CLIENT_ID}`;
-        }
-
-        // Add filters
-        if (filters?.includedTags) {
-          filters.includedTags.forEach(tag => params.append('includedTags[]', tag));
-        }
-        if (filters?.excludedTags) {
-          filters.excludedTags.forEach(tag => params.append('excludedTags[]', tag));
-        }
-        if (filters?.status) {
-          filters.status.forEach(status => params.append('status[]', status));
-        }
-        if (filters?.publicationDemographic) {
-          filters.publicationDemographic.forEach(demo => params.append('publicationDemographic[]', demo));
-        }
-        if (filters?.order) {
-          Object.entries(filters.order).forEach(([key, value]) => {
-            params.append(`order[${key}]`, value);
+          // Add includes
+          ['cover_art', 'author', 'artist'].forEach(include => {
+            params.append('includes[]', include);
           });
-        }
 
-        const response = await fetch(`${MANGADEX_BASE_URL}/manga?${params.toString()}`, {
-          headers: headers,
-        });
+          // Add content ratings
+          const defaultContentRatings = ['safe', 'suggestive', 'erotica'];
+          const explicitRatings = filters?.contentRating?.filter(r => ['pornographic', 'hentai'].includes(r)) || [];
+          const contentRatings = explicitRatings.length > 0 
+            ? [...defaultContentRatings, explicitRatings[0]]
+            : defaultContentRatings;
+            
+          contentRatings.forEach(rating => {
+            params.append('contentRating[]', rating);
+          });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
+          // Add filters
+          if (filters?.includedTags) {
+            filters.includedTags.forEach(tag => params.append('includedTags[]', tag));
+          }
+          if (filters?.excludedTags) {
+            filters.excludedTags.forEach(tag => params.append('excludedTags[]', tag));
+          }
+          if (filters?.status) {
+            filters.status.forEach(status => params.append('status[]', status));
+          }
+          if (filters?.publicationDemographic) {
+            filters.publicationDemographic.forEach(demo => params.append('publicationDemographic[]', demo));
+          }
+          if (filters?.order) {
+            Object.entries(filters.order).forEach(([key, value]) => {
+              params.append(`order[${key}]`, value);
+            });
+          }
 
-        const data = await response.json();
-        return this.processMangaData(data.data || []);
-      });
+          // Use CORS proxy for MangaDex
+          const data = await fetchMangaDex<{ data: MangaResponse[] }>(
+            `/manga?${params.toString()}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+              }
+            }
+          );
 
-      cache.set(cacheKey, result, 5 * 60 * 1000); // Cache for 5 minutes
-      return result;
+          return this.processMangaData(data.data || []);
+        },
+        24 * 60 * 60 * 1000 // 24 hours in localStorage
+      );
     } catch (error) {
       console.error('Error searching manga:', error);
+      
+      // Try to return stale data from localStorage if available
+      const staleData = localStorageManager.get<Manga[]>(storageKey);
+      if (staleData) {
+        console.warn('Returning stale data from localStorage');
+        return staleData;
+      }
+      
       return [];
     }
   },
 
   // Get manga by ID
   async getMangaById(id: string): Promise<Manga | null> {
-    const cacheKey = `manga_${id}`;
-    const cached = cache.get<Manga>(cacheKey);
-    if (cached) return cached;
-
+    const storageKey = `manga_${id}`;
+    
     try {
-      const result = await retryFetch(async () => {
-        await delay(250);
-        const response = await fetch(`${MANGADEX_BASE_URL}/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
-          }
-        });
+      return await localStorageManager.getOrFetch(
+        storageKey,
+        async () => {
+          await delay(250);
+          
+          const data = await fetchMangaDex<{ data: MangaResponse }>(
+            `/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+              }
+            }
+          );
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const processed = this.processMangaData([data.data]);
-        return processed[0] || null;
-      });
-
-      if (result) {
-        cache.set(cacheKey, result, 15 * 60 * 1000); // Cache for 15 minutes
-      }
-      return result;
+          const processed = this.processMangaData([data.data]);
+          return processed[0] || null;
+        },
+        24 * 60 * 60 * 1000 // 24 hours
+      );
     } catch (error) {
       console.error('Error fetching manga:', error);
-      return null;
+      const staleData = localStorageManager.get<Manga>(storageKey);
+      return staleData || null;
     }
   },
 
   // Get manga chapters
   async getMangaChapters(mangaId: string, limit = 100, offset = 0, translatedLanguage = ['en']): Promise<MangaChapter[]> {
-    const cacheKey = `chapters_${mangaId}_${limit}_${offset}_${translatedLanguage.join('_')}`;
-    const cached = cache.get<MangaChapter[]>(cacheKey);
-    if (cached) return cached;
-
+    const storageKey = `chapters_${mangaId}_${limit}_${offset}_${translatedLanguage.join('_')}`;
+    
     try {
-      const result = await retryFetch(async () => {
-        await delay(250);
+      return await localStorageManager.getOrFetch(
+        storageKey,
+        async () => {
+          await delay(250);
 
-        const params = new URLSearchParams();
-        params.append('manga', mangaId);
-        params.append('limit', limit.toString());
-        params.append('offset', offset.toString());
-        translatedLanguage.forEach(lang => params.append('translatedLanguage[]', lang));
-        params.append('order[chapter]', 'asc');
-        params.append('includes[]', 'scanlation_group');
+          const params = new URLSearchParams();
+          params.append('manga', mangaId);
+          params.append('limit', limit.toString());
+          params.append('offset', offset.toString());
+          translatedLanguage.forEach(lang => params.append('translatedLanguage[]', lang));
+          params.append('order[chapter]', 'asc');
+          params.append('includes[]', 'scanlation_group');
 
-        const response = await fetch(`${MANGADEX_BASE_URL}/chapter?${params}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
-          }
-        });
+          const data = await fetchMangaDex<{ data: ChapterResponse[] }>(
+            `/chapter?${params}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+              }
+            }
+          );
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return this.processChapterData(data.data || []);
-      });
-
-      cache.set(cacheKey, result, 10 * 60 * 1000); // Cache for 10 minutes
-      return result;
+          return this.processChapterData(data.data || []);
+        },
+        12 * 60 * 60 * 1000 // 12 hours
+      );
     } catch (error) {
       console.error('Error fetching chapters:', error);
-      return [];
+      const staleData = localStorageManager.get<MangaChapter[]>(storageKey);
+      return staleData || [];
     }
   },
 
   // Get chapter images
   async getChapterImages(chapterId: string): Promise<MangaChapterImages | null> {
+    const storageKey = `chapter_images_${chapterId}`;
+    
     try {
-      const result = await retryFetch(async () => {
-        await delay(250);
-        const response = await fetch(`${MANGADEX_BASE_URL}/at-home/server/${chapterId}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
-          }
-        });
+      return await localStorageManager.getOrFetch(
+        storageKey,
+        async () => {
+          await delay(250);
+          
+          const data = await fetchMangaDex<AtHomeServerResponse>(
+            `/at-home/server/${chapterId}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+              }
+            }
+          );
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data: AtHomeServerResponse = await response.json();
-        return {
-          baseUrl: data.baseUrl,
-          chapter: {
-            hash: data.chapter.hash,
-            data: data.chapter.data,
-            dataSaver: data.chapter.dataSaver,
-          },
-        };
-      });
-      return result;
+          return {
+            baseUrl: data.baseUrl,
+            chapter: {
+              hash: data.chapter.hash,
+              data: data.chapter.data,
+              dataSaver: data.chapter.dataSaver,
+            },
+          };
+        },
+        6 * 60 * 60 * 1000 // 6 hours
+      );
     } catch (error) {
       console.error('Error fetching chapter images:', error);
-      return null;
+      const staleData = localStorageManager.get<MangaChapterImages>(storageKey);
+      return staleData || null;
     }
   },
 
@@ -323,25 +324,34 @@ export const mangadexApi = {
 
   // Get available tags for filtering
   async getTags(): Promise<Array<{ id: string; name: string; group: string }>> {
+    const storageKey = 'manga_tags';
+    
     try {
-      const response = await fetch(`${MANGADEX_BASE_URL}/manga/tag`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
-        }
-      });
+      return await localStorageManager.getOrFetch(
+        storageKey,
+        async () => {
+          const data = await fetchMangaDex<{ data: TagResponse[] }>(
+            '/manga/tag',
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MANGADEX_CLIENT_ID}`
+              }
+            }
+          );
 
-      if (!response.ok) return [];
-
-      const data = await response.json();
-      return (data.data || []).map((tag: TagResponse) => ({
-        id: tag.id,
-        name: tag.attributes.name.en,
-        group: tag.attributes.group,
-      }));
+          return (data.data || []).map((tag: TagResponse) => ({
+            id: tag.id,
+            name: tag.attributes.name.en,
+            group: tag.attributes.group,
+          }));
+        },
+        7 * 24 * 60 * 60 * 1000 // 7 days (tags rarely change)
+      );
     } catch (error) {
       console.error('Error fetching tags:', error);
-      return [];
+      const staleData = localStorageManager.get<Array<{ id: string; name: string; group: string }>>(storageKey);
+      return staleData || [];
     }
   },
 
@@ -354,7 +364,7 @@ export const mangadexApi = {
 
       const coverFileName = coverArt?.attributes?.fileName;
       const coverUrl = coverFileName
-        ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFileName}.256.jpg`
+        ? `https://uploads.mangadex.org/covers/${manga.id}/${coverFileName}.512.jpg`
         : '/placeholder.svg';
 
       return {
