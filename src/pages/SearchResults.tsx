@@ -178,7 +178,7 @@ const SearchResults = () => {
   }, [loadMore]);
 
   const handleMangaClick = (manga: Manga) => {
-    navigate(`/manga/${manga.id}`);
+    navigate(`/manga/${manga.id}`, { state: { from: window.location.pathname + window.location.search } });
   };
 
   const handleCharacterClick = (character: Character) => {

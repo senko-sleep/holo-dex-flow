@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnimeDex+ | Discover Anime, Manga &amp; Theme Songs</title>
+    <meta name="description" content="Explore top-rated anime, discover current season releases, and listen to theme songs. Your ultimate anime discovery platform with character info and voice actors.">
+    <meta name="author" content="AnimeDex+" />
+
+    
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/YWoLTt57yXQwgwlt15O5RcplijN2/social-images/social-1762468523849-image_2025-11-06_173523815.png">
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/YWoLTt57yXQwgwlt15O5RcplijN2/social-images/social-1762468523849-image_2025-11-06_173523815.png">
+    <meta property="og:title" content="AnimeDex+ | Discover Anime, Manga &amp; Theme Songs">
+  <meta name="twitter:title" content="AnimeDex+ | Discover Anime, Manga &amp; Theme Songs">
+  <meta property="og:description" content="Explore top-rated anime, discover current season releases, and listen to theme songs. Your ultimate anime discovery platform with character info and voice actors.">
+  <meta name="twitter:description" content="Explore top-rated anime, discover current season releases, and listen to theme songs. Your ultimate anime discovery platform with character info and voice actors.">
+  <link rel="icon" type="image/x-icon" href="https://storage.googleapis.com/gpt-engineer-file-uploads/YWoLTt57yXQwgwlt15O5RcplijN2/uploads/1762468517551-Untitled_design__1_-removebg-preview.png">
+  <script type="module" crossorigin src="/assets/index-t8tHWUD_.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-6TVFp1Wj.css">
+</head>
+
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

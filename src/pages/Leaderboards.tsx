@@ -160,7 +160,7 @@ const Leaderboards = () => {
                     </div>
                     <MangaCard
                       manga={manga}
-                      onClick={() => navigate(`/manga/${manga.id}`)}
+                      onClick={() => navigate(`/manga/${manga.id}`, { state: { from: '/leaderboards' } })}
                     />
                   </div>
                 ))}

@@ -13,6 +13,7 @@ import { AnimeModal } from '@/components/AnimeModal';
 import { LoadingGrid } from '@/components/LoadingGrid';
 import { Sparkles, TrendingUp, Flame } from 'lucide-react';
 import { applySeasonalTheme, getSeasonIcon, getSeasonName, getThemeDescription } from '@/lib/seasonalTheme';
+import { imageLoader } from '@/lib/progressiveLoader';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -21,7 +22,9 @@ const Index = () => {
   const [featuredAnime, setFeaturedAnime] = useState<Anime[]>([]);
   const [hottestManga, setHottestManga] = useState<Manga[]>([]);
   const [selectedAnime, setSelectedAnime] = useState<Anime | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAnime, setIsLoadingAnime] = useState(true);
+  const [isLoadingManga, setIsLoadingManga] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   // Get current season with year
   const getCurrentSeasonWithYear = () => {
@@ -42,43 +45,105 @@ const Index = () => {
     // Apply seasonal theme
     applySeasonalTheme();
 
-    const loadAnime = async () => {
-      setIsLoading(true);
+    const loadContent = async () => {
+      const startTime = performance.now();
+      
       try {
-        console.log('Starting to load anime data...');
-        const [top, seasonal, featured, manga] = await Promise.all([
-          animeApi.getTopAnime(1, 24),
-          animeApi.getCurrentSeasonAnime(),
-          animeApi.getTopAnime(1, 10),
+        // INSTANT: Load lightweight metadata first (no images)
+        console.log('⚡ INSTANT: Loading metadata...');
+        
+        // Load anime and manga metadata in parallel
+        const [animeResults, mangaResults] = await Promise.all([
+          // Anime metadata (fast)
+          Promise.all([
+            animeApi.getTopAnime(1, 24),
+            animeApi.getCurrentSeasonAnime(),
+            animeApi.getTopAnime(1, 10),
+          ]),
+          // Manga metadata (fast)
           mangadexApi.searchManga('', { order: { followedCount: 'desc' } }, 24, 0),
         ]);
-        console.log('Data loaded:', {
-          topAnime: top.length,
-          seasonalAnime: seasonal.length,
-          featuredAnime: featured.length,
-          manga: manga.length
-        });
+        
+        const [top, seasonal, featured] = animeResults;
+        const manga = mangaResults;
+        
+        // Show content INSTANTLY with placeholder images
         setTopAnime(top);
         setSeasonalAnime(seasonal);
         setFeaturedAnime(featured);
         setHottestManga(manga);
+        setIsLoadingAnime(false);
+        setIsLoadingManga(false);
+        
+        const metadataTime = performance.now() - startTime;
+        console.log(`✅ INSTANT: Content visible in ${metadataTime.toFixed(0)}ms`);
+        console.log(`   - Anime: ${top.length + seasonal.length + featured.length} items`);
+        console.log(`   - Manga: ${manga.length} items`);
+        
+        // BACKGROUND: Progressively load images one at a time
+        console.log('🖼️ BACKGROUND: Loading images progressively...');
+        
+        // Collect all image URLs
+        const animeImages = [
+          ...top.map(a => a.images.jpg.image_url),
+          ...seasonal.map(a => a.images.jpg.image_url),
+          ...featured.map(a => a.images.jpg.image_url),
+        ].filter(Boolean);
+        
+        const mangaImages = manga
+          .map(m => m.coverUrl)
+          .filter(Boolean);
+        
+        const allImages = [...animeImages, ...mangaImages];
+        let loaded = 0;
+        
+        // Load images progressively (3 at a time)
+        imageLoader.setMaxConcurrent(3);
+        
+        allImages.forEach((url, index) => {
+          imageLoader.enqueue(
+            url,
+            () => {
+              loaded++;
+              const progress = Math.round((loaded / allImages.length) * 100);
+              setLoadingProgress(progress);
+              
+              if (loaded === allImages.length) {
+                const totalTime = performance.now() - startTime;
+                console.log(`✅ All images loaded in ${totalTime.toFixed(0)}ms`);
+              }
+            },
+            allImages.length - index // Higher priority for visible images
+          );
+        });
+        
       } catch (error) {
         console.error('Error loading content:', error);
-      } finally {
-        setIsLoading(false);
+        setIsLoadingAnime(false);
+        setIsLoadingManga(false);
       }
     };
 
-    loadAnime();
+    loadContent();
   }, []);
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Subtle progress bar for image loading */}
+      {loadingProgress > 0 && loadingProgress < 100 && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-secondary/20">
+          <div 
+            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300 ease-out"
+            style={{ width: `${loadingProgress}%` }}
+          />
+        </div>
+      )}
+      
       <Navigation />
       
       {/* Featured Slider */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {isLoading ? (
+        {isLoadingAnime ? (
           <div className="w-full h-[500px] md:h-[600px] bg-secondary/20 rounded-2xl animate-pulse" />
         ) : (
           <FeaturedSlider items={featuredAnime} onItemClick={setSelectedAnime} />
@@ -103,7 +168,7 @@ const Index = () => {
               <p className="text-xs text-primary mt-1 font-medium">Theme: {getSeasonIcon()} {getSeasonName()} - {getThemeDescription()}</p>
             </div>
           </div>
-          {isLoading ? (
+          {isLoadingAnime ? (
             <LoadingGrid count={12} type="card" />
           ) : seasonalAnime && seasonalAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -133,7 +198,7 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">Top rated manga you can't miss</p>
             </div>
           </div>
-          {isLoading ? (
+          {isLoadingManga ? (
             <LoadingGrid count={24} type="card" />
           ) : hottestManga && hottestManga.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -141,7 +206,7 @@ const Index = () => {
                 <MangaCard
                   key={manga.id}
                   manga={manga}
-                  onClick={() => navigate(`/manga/${manga.id}`)}
+                  onClick={() => navigate(`/manga/${manga.id}`, { state: { from: '/' } })}
                 />
               ))}
             </div>
@@ -163,7 +228,7 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">The best anime ever created</p>
             </div>
           </div>
-          {isLoading ? (
+          {isLoadingAnime ? (
             <LoadingGrid count={24} type="card" />
           ) : topAnime && topAnime.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">

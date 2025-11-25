@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Music, SkipBack, SkipForward } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Play, Pause, Volume2, VolumeX, Music, SkipBack, SkipForward, Loader2 } from 'lucide-react';
 import { ThemeSong } from '@/types/anime';
-import { animeApi } from '@/services/animeApi';
+import { youtubeService, YouTubeSearchResult, YouTubePlayer, YouTubePlayerEvent } from '@/services/youtubeService';
 
 interface ThemeSongPlayerProps {
   theme: ThemeSong;
@@ -11,78 +11,140 @@ interface ThemeSongPlayerProps {
   hasPrevious?: boolean;
 }
 
-export const ThemeSongPlayer = ({ 
-  theme, 
-  onNext, 
-  onPrevious, 
-  hasNext, 
-  hasPrevious 
+export const ThemeSongPlayer = ({
+  theme,
+  onNext,
+  onPrevious,
+  hasNext,
+  hasPrevious
 }: ThemeSongPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [youtubeResult, setYoutubeResult] = useState<YouTubeSearchResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const playerRef = useRef<YouTubePlayer | null>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
 
-  // Get the best quality video with audio using the same API
-  const audioUrl = animeApi.getBestAudioUrl(theme);
-  const bestVideo = theme.videos && theme.videos.length > 0 
-    ? theme.videos
-        .filter(v => v.audio || v.link)
-        .sort((a, b) => {
-          // Prioritize videos with audio
-          if (a.audio && !b.audio) return -1;
-          if (!a.audio && b.audio) return 1;
-          
-          // Then sort by quality
-          const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
-          const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
-          const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
-          
-          return bQuality - aQuality;
-        })[0] 
-    : null;
-
+  // Search for the song on YouTube when theme changes
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const searchSong = async () => {
+      setIsLoading(true);
+      setError(null);
+      setYoutubeResult(null);
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
-    const handleEnded = () => {
-      setIsPlaying(false);
-      onNext();
+      try {
+        // Create search query from song title and artists
+        const artistNames = theme.song.artists.map(a => a.name).join(' ');
+        const query = `${theme.song.title} ${artistNames}`.trim();
+
+        const results = await youtubeService.searchAudioTracks(query, 1);
+
+        if (results.length > 0) {
+          setYoutubeResult(results[0]);
+          const durationSeconds = youtubeService.parseDuration(results[0].duration);
+          setDuration(durationSeconds);
+        } else {
+          setError('No audio tracks found on YouTube');
+        }
+      } catch (err) {
+        console.error('Error searching YouTube:', err);
+        setError('Failed to search for audio track');
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('ended', handleEnded);
+    if (theme.song.title) {
+      searchSong();
+    }
+  }, [theme.song.title, theme.song.artists]);
+
+  const onPlayerReady = useCallback((event: YouTubePlayerEvent) => {
+    if (event.target) {
+      event.target.setVolume(volume * 100);
+      setDuration(event.target.getDuration());
+    }
+  }, [volume]);
+
+  const onPlayerStateChange = useCallback((event: YouTubePlayerEvent) => {
+    if (event.data === window.YT.PlayerState.ENDED) {
+      setIsPlaying(false);
+      onNext?.();
+    }
+    setIsPlaying(event.data === window.YT.PlayerState.PLAYING);
+  }, [onNext]);
+
+  // Load YouTube IFrame Player API
+  useEffect(() => {
+    if (!youtubeResult) return;
+
+    // Load YouTube IFrame API if not already loaded
+    if (!window.YT) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(script);
+
+      window.onYouTubeIframeAPIReady = () => {
+        initializePlayer();
+      };
+    } else {
+      initializePlayer();
+    }
+
+    function initializePlayer() {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+
+      playerRef.current = new window.YT.Player(playerContainerRef.current!, {
+        height: '0', // Hidden video
+        width: '0',  // Hidden video
+        videoId: youtubeResult.videoId,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+          showinfo: 0
+        },
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange
+        }
+      });
+    }
 
     return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-      audio.removeEventListener('ended', handleEnded);
+      if (playerRef.current) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
     };
-  }, [theme, onNext]);
+  }, [youtubeResult, onPlayerReady, onPlayerStateChange]);
 
   const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    if (!playerRef.current) return;
 
     if (isPlaying) {
-      audio.pause();
+      playerRef.current.pauseVideo();
     } else {
-      audio.play().catch(e => console.error('Error playing audio:', e));
+      playerRef.current.playVideo();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
+    if (playerRef.current) {
+      playerRef.current.setVolume(newVolume * 100);
     }
     if (newVolume === 0) {
       setIsMuted(true);
@@ -92,19 +154,36 @@ export const ThemeSongPlayer = ({
   };
 
   const toggleMute = () => {
-    if (audioRef.current) {
-      audioRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+    if (!playerRef.current) return;
+
+    if (isMuted) {
+      playerRef.current.unMute();
+      playerRef.current.setVolume(volume * 100);
+      setIsMuted(false);
+    } else {
+      playerRef.current.mute();
+      setIsMuted(true);
     }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setCurrentTime(newTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
+    if (playerRef.current) {
+      playerRef.current.seekTo(newTime);
     }
   };
+
+  // Update current time periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (playerRef.current && isPlaying) {
+        setCurrentTime(playerRef.current.getCurrentTime());
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
@@ -112,23 +191,29 @@ export const ThemeSongPlayer = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!bestVideo || theme.videos.length === 0) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-3 text-muted-foreground text-sm">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <span>Searching for audio...</span>
+      </div>
+    );
+  }
+
+  if (error || !youtubeResult) {
     return (
       <div className="flex items-center justify-center py-3 text-muted-foreground text-sm">
         <Music className="mr-2 h-4 w-4" />
-        <span>No audio available</span>
+        <span>{error || 'No audio available'}</span>
       </div>
     );
   }
 
   return (
     <div className="group">
-      <audio 
-        ref={audioRef} 
-        src={bestVideo.audio || bestVideo.link} 
-        preload="metadata"
-      />
-      
+      {/* Hidden YouTube Player */}
+      <div ref={playerContainerRef} className="hidden" />
+
       {/* Song Info */}
       <div className="mb-3">
         <h3 className="text-sm font-semibold leading-tight text-foreground">
@@ -136,8 +221,8 @@ export const ThemeSongPlayer = ({
         </h3>
         <div className="flex items-center gap-2 mt-1">
           <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
-            theme.type === 'OP' 
-              ? 'bg-amber-500/20 text-amber-500' 
+            theme.type === 'OP'
+              ? 'bg-amber-500/20 text-amber-500'
               : 'bg-purple-500/20 text-purple-500'
           }`}>
             {theme.type}{theme.sequence > 1 ? ` ${theme.sequence}` : ''}
@@ -148,6 +233,9 @@ export const ThemeSongPlayer = ({
             </p>
           )}
         </div>
+        <p className="text-xs text-muted-foreground mt-1 truncate">
+          {youtubeResult.channelTitle}
+        </p>
       </div>
 
       {/* Progress Bar */}
@@ -180,7 +268,7 @@ export const ThemeSongPlayer = ({
           >
             <SkipBack size={16} />
           </button>
-          
+
           <button
             onClick={togglePlay}
             className="p-1.5 text-foreground hover:text-primary transition-colors"
@@ -205,8 +293,8 @@ export const ThemeSongPlayer = ({
 
         {/* Right: Volume */}
         <div className="flex items-center gap-1.5">
-          <button 
-            onClick={toggleMute} 
+          <button
+            onClick={toggleMute}
             className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
             aria-label={isMuted ? 'Unmute' : 'Mute'}
           >
@@ -230,5 +318,3 @@ export const ThemeSongPlayer = ({
     </div>
   );
 };
-
-export default ThemeSongPlayer;

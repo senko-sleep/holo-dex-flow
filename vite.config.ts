@@ -13,24 +13,49 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
+      "/api/anilist": {
+        target: "https://graphql.anilist.co",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/anilist/, ""),
+        configure: (proxy, _options) => {
+          proxy.on("error", (err) => {
+            console.error("AniList Proxy error:", err);
+          });
+
+          proxy.on("proxyReq", (proxyReq, req) => {
+            const origin = req.headers.origin || `http://${req.headers.host}`;
+            proxyReq.setHeader("Origin", origin);
+            proxyReq.setHeader("Accept", "application/json");
+            proxyReq.setHeader("Content-Type", "application/json");
+            console.log("→ AniList Request:", req.method, req.url);
+          });
+
+          proxy.on("proxyRes", (proxyRes, req) => {
+            const origin = req.headers.origin || `http://${req.headers.host}`;
+            proxyRes.headers["Access-Control-Allow-Origin"] = origin;
+            proxyRes.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+            proxyRes.headers["Access-Control-Allow-Headers"] = "Content-Type";
+            proxyRes.headers["Vary"] = "Origin";
+            console.log("← AniList Response:", proxyRes.statusCode);
+          });
+        },
+      },
       "/api/mangadex": {
         target: "https://api.mangadex.org",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/mangadex/, ""),
         configure: (proxy, _options) => {
           proxy.on("error", (err) => {
-            console.error("Proxy error:", err);
+            console.error("MangaDex Proxy error:", err);
           });
 
           proxy.on("proxyReq", (proxyReq, req) => {
             const origin = req.headers.origin || `http://${req.headers.host}`;
             proxyReq.setHeader("Origin", origin);
-            // Add MangaDex API headers
             proxyReq.setHeader("Accept", "application/json");
             proxyReq.setHeader("Content-Type", "application/json");
-            // Remove any existing Authorization header to avoid conflicts
             proxyReq.removeHeader("Authorization");
-            console.log("→ Sending Request:", req.method, req.url, "Origin:", origin);
+            console.log("→ MangaDex Request:", req.method, req.url);
           });
 
           proxy.on("proxyRes", (proxyRes, req) => {
@@ -39,7 +64,7 @@ export default defineConfig(({ mode }) => ({
             proxyRes.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
             proxyRes.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
             proxyRes.headers["Vary"] = "Origin";
-            console.log("← Response:", proxyRes.statusCode, req.url, "Origin:", origin);
+            console.log("← MangaDex Response:", proxyRes.statusCode);
           });
         },
       },

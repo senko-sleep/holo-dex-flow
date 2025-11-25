@@ -120,12 +120,12 @@ export class NHentaiProvider extends BaseMangaProvider {
   async getChapterImages(chapterId: string): Promise<MangaChapterImages | null> {
     try {
       const gallery = await this.getMangaDetails(chapterId);
-      if (!gallery) return null;
+      if (!gallery || !gallery.mediaId) return null;
 
       // nHentai uses a simple pattern for image URLs
       const imageUrls = Array.from({ length: gallery.pages || 0 }, (_, i) => {
         const pageNum = i + 1;
-        return `https://i.nhentai.net/galleries/${gallery.id}/${pageNum}.jpg`;
+        return `https://i.nhentai.net/galleries/${gallery.mediaId}/${pageNum}.jpg`;
       });
 
       return {
@@ -183,7 +183,9 @@ export class NHentaiProvider extends BaseMangaProvider {
       chapters: 1,
       pages: gallery.num_pages,
       favorites: gallery.num_favorites,
-      lastUpdated: new Date(gallery.upload_date * 1000).toISOString()
+      lastUpdated: new Date(gallery.upload_date * 1000).toISOString(),
+      mediaId: gallery.media_id,
+      provider: this.name
     };
   }
 

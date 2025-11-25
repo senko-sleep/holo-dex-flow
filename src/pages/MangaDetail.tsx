@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Manga, MangaChapter } from '@/types/manga';
 import { mangadexApi } from '@/services/mangadexApi';
 import { ContentWarning } from '@/components/ContentWarning';
@@ -10,16 +10,22 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, BookOpen, Calendar, User, Loader2 } from 'lucide-react';
 import { applySeasonalTheme } from '@/lib/seasonalTheme';
+import { useMangaCover } from '@/hooks/useMangaCover';
 
 const MangaDetail = () => {
   const { mangaId } = useParams<{ mangaId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPath = (location.state as { from?: string })?.from;
   
   const [manga, setManga] = useState<Manga | null>(null);
   const [chapters, setChapters] = useState<MangaChapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showWarning, setShowWarning] = useState(false);
   const [warningAccepted, setWarningAccepted] = useState(false);
+  
+  // Fetch AniList cover (no delay for detail page)
+  const coverUrl = useMangaCover(manga?.title || '', 0);
 
   useEffect(() => {
     // Apply seasonal theme
@@ -78,7 +84,22 @@ const MangaDetail = () => {
   };
 
   const handleWarningDecline = () => {
-    navigate(-1);
+    // Go back in browser history
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/manga');
+    }
+  };
+
+  const handleBackClick = () => {
+    // Use the actual source path if available
+    if (fromPath) {
+      navigate(fromPath);
+    } else {
+      // Fallback to manga search
+      navigate('/manga');
+    }
   };
 
   if (isLoading) {
@@ -97,7 +118,7 @@ const MangaDetail = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Manga not found</p>
-          <Button onClick={() => navigate('/manga')}>Back to Search</Button>
+          <Button onClick={handleBackClick}>Back</Button>
         </div>
       </div>
     );
@@ -135,10 +156,10 @@ const MangaDetail = () => {
           <Button
             variant="ghost"
             className="text-white hover:text-white/80"
-            onClick={() => navigate('/manga')}
+            onClick={handleBackClick}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Search
+            Back
           </Button>
         </div>
       </header>
@@ -149,10 +170,12 @@ const MangaDetail = () => {
           <div>
             <div className="relative bg-secondary/20 rounded-xl overflow-hidden mb-4">
               <img
-                src={manga.coverUrl || '/placeholder.svg'}
+                src={coverUrl}
                 alt={manga.title}
                 className="w-full rounded-xl shadow-2xl"
                 loading="eager"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
               />
             </div>
             <div className="space-y-3">

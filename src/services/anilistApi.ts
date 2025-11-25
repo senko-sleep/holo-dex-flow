@@ -1,6 +1,11 @@
 import { cache } from '@/lib/cache';
+import { fetchWithCorsProxy, isCorsError } from '@/lib/corsProxy';
+import { anilistQueue, withQueue } from '@/lib/requestQueue';
 
-const ANILIST_API_URL = 'https://graphql.anilist.co';
+// Use Vite proxy in development, direct URL in production
+const ANILIST_API_URL = import.meta.env.DEV 
+  ? '/api/anilist' 
+  : 'https://graphql.anilist.co';
 
 // Type definitions
 interface AniListTitle {
@@ -179,67 +184,107 @@ class AniListAPIError extends Error {
   }
 }
 
-// GraphQL query helper
+// GraphQL query helper with proxy rotation support and request queuing
 async function graphqlRequest<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  await delay(100); // Small delay to avoid overwhelming the API
-  
-  try {
-    const response = await fetch(ANILIST_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        variables,
-      }),
-    });
-
-    // Check for rate limiting (429 Too Many Requests)
-    if (response.status === 429) {
-      const retryAfter = response.headers.get('Retry-After');
-      const retrySeconds = retryAfter ? parseInt(retryAfter) : 60;
-      const errorMessage = `Rate limited by AniList API. Please wait ${retrySeconds} seconds before trying again.`;
-      console.error(errorMessage);
-      throw new AniListAPIError(errorMessage, 429, true, retrySeconds);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AniList API error:', response.status, errorText);
+  // Use request queue to prevent rate limiting
+  return withQueue(anilistQueue, async () => {
+    await delay(100); // Small delay to avoid overwhelming the API
+    
+    const makeGraphQLRequest = async (useProxy: boolean = false): Promise<T> => {
+    try {
+      let response: Response;
       
-      let errorMessage = `AniList API error (${response.status})`;
-      if (response.status === 500) {
-        errorMessage = 'AniList server error. The service may be temporarily unavailable.';
-      } else if (response.status === 503) {
-        errorMessage = 'AniList service is temporarily unavailable. Please try again later.';
-      } else if (response.status === 404) {
-        errorMessage = 'Requested resource not found on AniList.';
+      if (useProxy) {
+        // Use CORS proxy with load balancing
+        console.log('Using CORS proxy for AniList request');
+        const data = await fetchWithCorsProxy<{ data: T; errors?: Array<{ message: string }> }>(
+          ANILIST_API_URL,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ query, variables }),
+          }
+        );
+        
+        if (data.errors) {
+          console.error('GraphQL errors:', data.errors);
+          const errorMessage = data.errors[0]?.message || 'Unknown GraphQL error';
+          throw new AniListAPIError(`AniList API: ${errorMessage}`);
+        }
+        
+        return data.data;
+      } else {
+        // Direct fetch
+        response = await fetch(ANILIST_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            variables,
+          }),
+        });
+
+        // Check for rate limiting (429 Too Many Requests)
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          const retrySeconds = retryAfter ? parseInt(retryAfter) : 60;
+          console.warn(`Rate limited by AniList API, switching to proxy rotation`);
+          // Try with proxy instead
+          return makeGraphQLRequest(true);
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('AniList API error:', response.status, errorText);
+          
+          let errorMessage = `AniList API error (${response.status})`;
+          if (response.status === 500) {
+            errorMessage = 'AniList server error. The service may be temporarily unavailable.';
+          } else if (response.status === 503) {
+            errorMessage = 'AniList service is temporarily unavailable. Please try again later.';
+          } else if (response.status === 404) {
+            errorMessage = 'Requested resource not found on AniList.';
+          }
+          
+          throw new AniListAPIError(errorMessage, response.status);
+        }
+
+        const json = await response.json();
+        
+        if (json.errors) {
+          console.error('GraphQL errors:', json.errors);
+          const errorMessage = json.errors[0]?.message || 'Unknown GraphQL error';
+          throw new AniListAPIError(`AniList API: ${errorMessage}`);
+        }
+
+        return json.data;
+      }
+    } catch (error) {
+      // If direct fetch fails with CORS/network error, try proxy
+      if (!useProxy && isCorsError(error)) {
+        console.warn('Direct fetch failed with CORS error, trying proxy...');
+        return makeGraphQLRequest(true);
       }
       
-      throw new AniListAPIError(errorMessage, response.status);
+      console.error('GraphQL request failed:', error);
+      // Re-throw AniListAPIError as-is, wrap other errors
+      if (error instanceof AniListAPIError) {
+        throw error;
+      }
+      throw new AniListAPIError(
+        error instanceof Error ? error.message : 'Network error connecting to AniList'
+      );
     }
-
-    const json = await response.json();
-    
-    if (json.errors) {
-      console.error('GraphQL errors:', json.errors);
-      const errorMessage = json.errors[0]?.message || 'Unknown GraphQL error';
-      throw new AniListAPIError(`AniList API: ${errorMessage}`);
-    }
-
-    return json.data;
-  } catch (error) {
-    console.error('GraphQL request failed:', error);
-    // Re-throw AniListAPIError as-is, wrap other errors
-    if (error instanceof AniListAPIError) {
-      throw error;
-    }
-    throw new AniListAPIError(
-      error instanceof Error ? error.message : 'Network error connecting to AniList'
-    );
-  }
+  };
+  
+  return makeGraphQLRequest(false);
+  }); // Close withQueue callback
 }
 
 // Transform AniList data to our Anime type
@@ -936,6 +981,53 @@ export const anilistApi = {
     } catch (error) {
       console.error('Error fetching tags from AniList:', error);
       return [];
+    }
+  },
+
+  // Search for manga cover by title
+  async searchMangaCover(title: string): Promise<string | null> {
+    const cacheKey = `anilist_manga_cover:${title.toLowerCase()}`;
+    const cached = cache.get<string>(cacheKey);
+    if (cached) return cached;
+
+    const query = `
+      query ($search: String) {
+        Page(page: 1, perPage: 5) {
+          media(search: $search, type: MANGA, sort: POPULARITY_DESC) {
+            id
+            title {
+              romaji
+              english
+              native
+            }
+            coverImage {
+              extraLarge
+              large
+              medium
+            }
+          }
+        }
+      }
+    `;
+
+    try {
+      const data = await graphqlRequest<{ Page: { media: AniListMedia[] } }>(query, { search: title });
+      
+      if (data.Page?.media && data.Page.media.length > 0) {
+        const manga = data.Page.media[0];
+        const coverUrl = manga.coverImage.extraLarge || manga.coverImage.large || manga.coverImage.medium;
+        
+        if (coverUrl) {
+          // Cache for 7 days
+          cache.set(cacheKey, coverUrl, 7 * 24 * 60 * 60 * 1000);
+          return coverUrl;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error fetching manga cover from AniList:', error);
+      return null;
     }
   },
 };

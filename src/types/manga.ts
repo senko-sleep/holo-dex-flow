@@ -26,6 +26,23 @@ export interface Manga {
   language?: string;
   parodies?: string[];
   categories?: string[];
+  volumes?: number;
+  averageScore?: number;
+  popularity?: number;
+  genres?: string[];
+  authors?: {
+    name: string;
+    role?: string;
+  }[];
+  synonyms?: string[];
+  format?: string;
+  countryOfOrigin?: string;
+  isLicensed?: boolean;
+  externalLinks?: {
+    site: string;
+    url: string;
+  }[];
+  siteUrl?: string;
   provider?: string;
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { MangaChapterImages, MangaChapter } from '@/types/manga';
+import { MangaChapterImages, MangaChapter, Manga } from '@/types/manga';
 import { mangadexApi } from '@/services/mangadexApi';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Settings, X } from 'lucide-react';
@@ -24,7 +24,9 @@ const MangaReader = () => {
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [fitMode, setFitMode] = useState<'width' | 'height' | 'both'>('both');
+  const [readingMode, setReadingMode] = useState<'paged' | 'scroll'>('paged');
   const [mangaId, setMangaId] = useState<string | null>(null);
+  const [mangaDetails, setMangaDetails] = useState<Manga | null>(null);
 
   // Load chapter data
   const loadChapter = useCallback(async (id: string) => {
@@ -58,17 +60,70 @@ const MangaReader = () => {
     }
   }, []);
   
-  // Load available chapters
+  // Load available chapters and manga details
   const loadChapters = useCallback(async () => {
     if (!mangaId) return;
     
     try {
-      const chapters = await mangadexApi.getMangaChapters(mangaId, 100, 0);
+      const [chapters, details] = await Promise.all([
+        mangadexApi.getMangaChapters(mangaId, 100, 0),
+        mangadexApi.getMangaById(mangaId)
+      ]);
       setChapters(chapters);
+      setMangaDetails(details);
+      
+      // Auto-detect webtoon format
+      if (details) {
+        const isWebtoon = detectWebtoon(details);
+        if (isWebtoon) {
+          setReadingMode('scroll');
+          console.log('📱 Webtoon detected - switching to infinite scroll mode');
+          toast.success('Webtoon detected! Switched to infinite scroll mode', {
+            duration: 3000,
+          });
+        }
+      }
     } catch (error) {
       console.error('Error loading chapters:', error);
     }
   }, [mangaId]);
+  
+  // Detect if manga is a webtoon
+  const detectWebtoon = (manga: Manga): boolean => {
+    // Check format field
+    if (manga.format?.toLowerCase().includes('webtoon')) return true;
+    
+    // Check tags for webtoon indicators
+    const webtoonTags = manga.tags?.some(tag => {
+      const tagName = tag.name.toLowerCase();
+      return tagName.includes('webtoon') ||
+             tagName.includes('long strip') ||
+             tagName.includes('vertical scroll') ||
+             tagName.includes('full color') ||
+             tagName.includes('long strip format');
+    });
+    if (webtoonTags) return true;
+    
+    // Check country of origin (Korean manhwa are typically webtoons)
+    if (manga.countryOfOrigin === 'KR') return true;
+    if (manga.countryOfOrigin === 'CN') return true; // Chinese manhua often webtoons too
+    
+    // Check title for common webtoon indicators
+    const title = manga.title.toLowerCase();
+    if (title.includes('manhwa') || 
+        title.includes('manhua') ||
+        title.includes('[webtoon]') ||
+        title.includes('(webtoon)')) return true;
+    
+    // Check genres for webtoon-specific genres
+    const webtoonGenres = manga.genres?.some(genre => {
+      const genreName = genre.toLowerCase();
+      return genreName.includes('webtoon');
+    });
+    if (webtoonGenres) return true;
+    
+    return false;
+  };
 
   useEffect(() => {
     applySeasonalTheme();
@@ -133,11 +188,24 @@ const MangaReader = () => {
     }
   }, [currentPage, chapterId, chapters, navigate, mangaId, goToPage]);
   
+  const totalPages = images?.chapter.data.length || 0;
+
+  // Handle back navigation
+  const handleBackClick = useCallback(() => {
+    if (mangaId) {
+      navigate(`/manga/${mangaId}`);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/manga');
+    }
+  }, [mangaId, navigate]);
+
   // Keyboard shortcuts
   useHotkeys('right, d', goToNextPage, { enabled: !isLoading });
   useHotkeys('left, a', goToPreviousPage, { enabled: !isLoading });
   useHotkeys('s', () => setShowSettings(prev => !prev), { enabled: !isLoading });
-  useHotkeys('escape', () => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1), { enabled: !isLoading });
+  useHotkeys('escape', handleBackClick, { enabled: !isLoading });
 
   // Auto-hide controls
   useEffect(() => {
@@ -170,6 +238,27 @@ const MangaReader = () => {
       }
     };
   }, []);
+
+  // Track scroll position in infinite scroll mode
+  useEffect(() => {
+    if (readingMode !== 'scroll') return;
+
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const currentPageIndex = Math.floor(scrollPosition / windowHeight);
+      
+      if (currentPageIndex !== currentPage && currentPageIndex >= 0 && currentPageIndex < totalPages) {
+        setCurrentPage(currentPageIndex);
+        if (chapterId) {
+          localStorage.setItem(`chapter_progress_${chapterId}`, currentPageIndex.toString());
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [readingMode, currentPage, totalPages, chapterId]);
 
   const handleChapterSelect = (chapterId: string) => {
     const url = mangaId ? `/reader/${chapterId}?mangaId=${mangaId}` : `/reader/${chapterId}`;
@@ -207,7 +296,7 @@ const MangaReader = () => {
         <div className="text-center space-y-4">
           <p className="text-white text-lg">Failed to load chapter</p>
           <div className="flex gap-4 justify-center">
-            <Button onClick={() => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1)} variant="outline">
+            <Button onClick={handleBackClick} variant="outline">
               <X className="h-4 w-4 mr-2" /> Close
             </Button>
             <Button onClick={() => chapterId && loadChapter(chapterId)} variant="default">
@@ -219,7 +308,6 @@ const MangaReader = () => {
     );
   }
 
-  const totalPages = images?.chapter.data.length || 0;
   const fitClass = 
     fitMode === 'width' ? 'max-w-full h-auto' :
     fitMode === 'height' ? 'w-auto max-h-screen' :
@@ -238,7 +326,7 @@ const MangaReader = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => mangaId ? navigate(`/manga/${mangaId}`) : navigate(-1)}
+              onClick={handleBackClick}
               className="text-white hover:bg-white/10 hover:text-red-400 transition-colors"
               title="Close reader (Esc)"
             >
@@ -270,12 +358,28 @@ const MangaReader = () => {
                   value={imageQuality} 
                   onValueChange={(value: 'data' | 'dataSaver') => setImageQuality(value)}
                 >
-                  <SelectTrigger className="bg-white/10 text-white border-white/20">
+                  <SelectTrigger className="bg-black text-white border-white/20">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="data">High Quality</SelectItem>
-                    <SelectItem value="dataSaver">Data Saver</SelectItem>
+                  <SelectContent className="bg-black border-white/20">
+                    <SelectItem value="data" className="text-white hover:bg-white/10">High Quality</SelectItem>
+                    <SelectItem value="dataSaver" className="text-white hover:bg-white/10">Data Saver</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-white text-xs">Reading Mode</label>
+                <Select 
+                  value={readingMode} 
+                  onValueChange={(value: 'paged' | 'scroll') => setReadingMode(value)}
+                >
+                  <SelectTrigger className="bg-black text-white border-white/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-white/20">
+                    <SelectItem value="paged" className="text-white hover:bg-white/10">Paged</SelectItem>
+                    <SelectItem value="scroll" className="text-white hover:bg-white/10">Infinite Scroll</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -286,13 +390,13 @@ const MangaReader = () => {
                   value={fitMode} 
                   onValueChange={(value: 'width' | 'height' | 'both') => setFitMode(value)}
                 >
-                  <SelectTrigger className="bg-white/10 text-white border-white/20">
+                  <SelectTrigger className="bg-black text-white border-white/20">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="both">Fit Screen</SelectItem>
-                    <SelectItem value="width">Fit Width</SelectItem>
-                    <SelectItem value="height">Fit Height</SelectItem>
+                  <SelectContent className="bg-black border-white/20">
+                    <SelectItem value="both" className="text-white hover:bg-white/10">Fit Screen</SelectItem>
+                    <SelectItem value="width" className="text-white hover:bg-white/10">Fit Width</SelectItem>
+                    <SelectItem value="height" className="text-white hover:bg-white/10">Fit Height</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -304,12 +408,12 @@ const MangaReader = () => {
                     value={chapterId} 
                     onValueChange={handleChapterSelect}
                   >
-                    <SelectTrigger className="bg-white/10 text-white border-white/20">
+                    <SelectTrigger className="bg-black text-white border-white/20">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
+                    <SelectContent className="max-h-[300px] bg-black border-white/20">
                       {chapters.map((chapter) => (
-                        <SelectItem key={chapter.id} value={chapter.id}>
+                        <SelectItem key={chapter.id} value={chapter.id} className="text-white hover:bg-white/10">
                           {chapter.title || `Chapter ${chapter.chapter}`}
                         </SelectItem>
                       ))}
@@ -322,20 +426,39 @@ const MangaReader = () => {
         )}
       </header>
 
-      {/* Main Reader Area - Click Zones */}
-      <div 
-        ref={containerRef}
-        className="flex items-center justify-center min-h-screen cursor-pointer"
-        onClick={handleClickZone}
-      >
-        <img
-          src={getImageUrl(currentPage)}
-          alt={`Page ${currentPage + 1}`}
-          className={`${fitClass} object-contain select-none`}
-          draggable={false}
-          loading="eager"
-        />
-      </div>
+      {/* Main Reader Area */}
+      {readingMode === 'paged' ? (
+        <div 
+          ref={containerRef}
+          className="flex items-center justify-center min-h-screen cursor-pointer"
+          onClick={handleClickZone}
+        >
+          <img
+            src={getImageUrl(currentPage)}
+            alt={`Page ${currentPage + 1}`}
+            className={`${fitClass} object-contain select-none`}
+            draggable={false}
+            loading="eager"
+          />
+        </div>
+      ) : (
+        <div 
+          ref={containerRef}
+          className="flex flex-col items-center py-16 space-y-0"
+        >
+          {Array.from({ length: totalPages }, (_, i) => (
+            <img
+              key={i}
+              src={getImageUrl(i)}
+              alt={`Page ${i + 1}`}
+              className="w-full h-screen object-contain select-none"
+              draggable={false}
+              loading={i < 3 ? 'eager' : 'lazy'}
+              style={{ minHeight: '100vh', maxHeight: '100vh' }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Page Counter (Bottom) */}
       <div 

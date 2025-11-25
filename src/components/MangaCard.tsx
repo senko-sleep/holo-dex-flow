@@ -4,14 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { BookOpen, Heart } from 'lucide-react';
 import { favorites } from '@/lib/favorites';
 import { useState } from 'react';
-
-// Helper to generate responsive image URLs for MangaDex covers
-const generateCoverSrcSet = (coverUrl: string): string => {
-  if (!coverUrl || coverUrl.includes('placeholder')) return '';
-  // MangaDex supports .256.jpg, .512.jpg, and full resolution
-  const baseUrl = coverUrl.replace(/\.\d+\.jpg$/, '');
-  return `${baseUrl}.256.jpg 256w, ${baseUrl}.512.jpg 512w`;
-};
+import { useMangaCover } from '@/hooks/useMangaCover';
 
 interface MangaCardProps {
   manga: Manga;
@@ -22,23 +15,28 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
   const [isFavorite, setIsFavorite] = useState(
     favorites.isFavorite(manga.id, 'manga')
   );
+
+  const coverUrl = useMangaCover(manga.title);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+
     if (isFavorite) {
       favorites.remove(manga.id, 'manga');
       setIsFavorite(false);
-    } else {
-      favorites.add({
-        id: manga.id,
-        type: 'manga',
-        title: manga.title,
-        imageUrl: manga.coverUrl,
-      });
-      setIsFavorite(true);
+      return;
     }
+
+    favorites.add({
+      id: manga.id,
+      type: 'manga',
+      title: manga.title,
+      imageUrl: coverUrl,
+    });
+
+    setIsFavorite(true);
   };
 
   return (
@@ -47,29 +45,32 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
       onClick={onClick}
     >
       <div className="aspect-[2/3] relative overflow-hidden bg-secondary/20">
-        {/* Placeholder skeleton while loading */}
+
+        {/* Skeleton */}
         {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-secondary/30 to-secondary/10 animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-secondary/5 animate-pulse" />
         )}
-        
-        {/* Main image with high quality */}
+
+        {/* Cover Image */}
         <img
-          src={imageError ? '/placeholder.svg' : manga.coverUrl}
-          srcSet={!imageError ? generateCoverSrcSet(manga.coverUrl) : ''}
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          src={imageError ? '/placeholder.svg' : coverUrl}
           alt={manga.title}
           className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           loading="lazy"
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
           onLoad={() => setImageLoaded(true)}
           onError={() => {
             setImageError(true);
             setImageLoaded(true);
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        
+
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-accent/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
         {/* Favorite Button */}
         <button
           onClick={handleFavoriteClick}
@@ -96,7 +97,8 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
             <BookOpen className="h-4 w-4" />
             <span>Click to read</span>
           </div>
-          {manga.tags && manga.tags.length > 0 && (
+
+          {manga.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {manga.tags.slice(0, 3).map(tag => (
                 <Badge key={tag.id} variant="secondary" className="text-xs">
@@ -112,6 +114,7 @@ export const MangaCard = ({ manga, onClick }: MangaCardProps) => {
         <h3 className="font-semibold text-sm line-clamp-2 mb-1 text-foreground group-hover:text-accent transition-colors">
           {manga.title}
         </h3>
+
         <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-foreground">
           {manga.year && <span>{manga.year}</span>}
           {manga.author && (

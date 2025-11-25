@@ -1,13 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Navigation } from '@/components/Navigation';
+import { MusicSearchBar } from '@/components/MusicSearchBar';
 import { animeApi } from '@/services/animeApi';
 import { Anime, ThemeSong } from '@/types/anime';
 import { LoadingGrid } from '@/components/LoadingGrid';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Music, Play, Pause, SkipForward, SkipBack, Volume, Volume1, Volume2, VolumeX, 
@@ -56,14 +56,12 @@ const MusicPlayer = () => {
   const [duration, setDuration] = useState(0);
   
   // State for search and UI
-  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('popular');
   const [animeWithThemes, setAnimeWithThemes] = useState<AnimeWithThemes[]>([]);
   const [selectedAnime, setSelectedAnime] = useState<AnimeWithThemes | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const prevTracksLength = useRef(0);
 
   // Load initial data
@@ -74,10 +72,26 @@ const MusicPlayer = () => {
         // Check for auto-search from anime modal
         const state = location.state as { animeTitle?: string; animeId?: number; autoSearch?: boolean };
         
-        if (state?.autoSearch && state.animeTitle) {
-          setSearchQuery(state.animeTitle);
-          setActiveTab('search');
-          await searchThemes(state.animeTitle, state.animeId);
+        if (state?.autoSearch && state.animeId) {
+          // Load anime by ID from auto-search
+          try {
+            const anime = await animeApi.getAnimeById(state.animeId);
+            if (anime) {
+              const newAnime: AnimeWithThemes = {
+                id: anime.mal_id,
+                title: anime.title,
+                image: anime.images.jpg.large_image_url || anime.images.jpg.image_url,
+                themes: [],
+                isExpanded: true,
+                isLoading: true
+              };
+              setAnimeWithThemes([newAnime]);
+              await loadAnimeThemes(anime.mal_id, 0, newAnime);
+              setActiveTab('search');
+            }
+          } catch (error) {
+            console.error('Error loading anime from auto-search:', error);
+          }
         } else {
           const animeList = await loadPopularAnime();
           // Load themes for the first anime by default
@@ -93,7 +107,8 @@ const MusicPlayer = () => {
     };
 
     loadInitialData();
-  }, [location.state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-play logic for initial search
   useEffect(() => {
@@ -134,72 +149,6 @@ const MusicPlayer = () => {
     }
   };
 
-  // Search for anime themes with autocomplete
-  const [searchSuggestions, setSearchSuggestions] = useState<{id: number, title: string}[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // Fetch search suggestions
-  const fetchSuggestions = useCallback(
-    debounce(async (query: string) => {
-      if (!query.trim()) {
-        setSearchSuggestions([]);
-        return;
-      }
-      
-      try {
-        const results = await animeApi.searchAnime(query, 1);
-        setSearchSuggestions(results.map(a => ({
-          id: a.mal_id,
-          title: a.title
-        })));
-      } catch (error) {
-        console.error('Error fetching suggestions:', error);
-      }
-    }, 300),
-    []
-  );
-
-  // Search for anime themes
-  const searchThemes = useCallback(debounce(async (query: string, animeId?: number) => {
-    if (!query.trim()) return;
-    
-    try {
-      setIsLoading(true);
-      let results: Anime[] = [];
-      
-      if (animeId) {
-        // Direct search by ID if available
-        const anime = await animeApi.getAnimeById(animeId);
-        if (anime) results = [anime];
-      } else {
-        // Search by query - increase limit to get more results
-        results = await animeApi.searchAnime(query, 1);
-      }
-      
-      const animeList = results.map(a => ({
-        id: a.mal_id,
-        title: a.title,
-        image: a.images.jpg.large_image_url,
-        themes: [] as ThemeSong[],
-        isExpanded: false,
-        isLoading: true
-      }));
-      
-      setAnimeWithThemes(animeList);
-      
-      // Load themes for all matching anime
-      if (animeList.length > 0) {
-        animeList.forEach((anime, index) => {
-          loadAnimeThemes(anime.id, index);
-        });
-        setSelectedAnime(animeList[0]);
-      }
-    } catch (error) {
-      console.error('Error searching themes:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, 500), []);
 
   // Load themes for a specific anime
   const loadAnimeThemes = async (animeId: number, index: number, animeData?: AnimeWithThemes) => {
@@ -261,15 +210,17 @@ const MusicPlayer = () => {
     }
   };
 
-  // Update tracks list from themes
+  // Update tracks list from themes - replaces tracks from the same anime
   const updateTracks = (themes: ThemeSong[], animeId: number, animeTitle: string, animeImage: string) => {
     if (!themes || themes.length === 0) return;
     
     setTracks(prevTracks => {
-      // Create a map of existing tracks by ID to avoid duplicates
-      const tracksMap = new Map(prevTracks.map(track => [track.id, track]));
+      // Remove all tracks from this anime first
+      const otherAnimeTracks = prevTracks.filter(track => track.animeId !== animeId);
       
-      // Add or update tracks from the new themes
+      // Create new tracks from themes
+      const newAnimeTracks: Track[] = [];
+      
       themes.forEach(theme => {
         // Use the same audio selection logic as AnimeModal
         const audioUrl = animeApi.getBestAudioUrl(theme);
@@ -288,48 +239,32 @@ const MusicPlayer = () => {
               return bQuality - aQuality;
             })[0];
 
-          const trackId = `${animeId}-${theme.id}-${bestVideo?.basename || bestVideo?.id || 0}`;
-          if (!tracksMap.has(trackId)) {
-            tracksMap.set(trackId, {
-              id: trackId,
-              title: theme.song?.title || `${theme.type} ${theme.sequence}`,
-              anime: animeTitle,
-              type: theme.type,
-              number: theme.sequence,
-              animeImage: animeImage,
-              animeId: animeId,
-              themeId: theme.id,
-              artists: theme.song?.artists,
-              videoUrl: bestVideo?.link,
-              audioUrl: audioUrl,
-              duration: bestVideo?.duration
-            });
-          }
+          newAnimeTracks.push({
+            id: `${animeId}-${theme.id}-${bestVideo?.basename || bestVideo?.id || 0}`,
+            title: theme.song?.title || `${theme.type} ${theme.sequence}`,
+            anime: animeTitle,
+            type: theme.type,
+            number: theme.sequence,
+            animeImage: animeImage,
+            animeId: animeId,
+            themeId: theme.id,
+            artists: theme.song?.artists,
+            videoUrl: bestVideo?.link,
+            audioUrl: audioUrl,
+            duration: bestVideo?.duration
+          });
         }
       });
       
-      const newTracks = Array.from(tracksMap.values());
-      return newTracks;
+      // Return tracks from other anime + new tracks from this anime
+      return [...otherAnimeTracks, ...newAnimeTracks];
     });
   };
 
-  // Filter tracks based on search query
+  // Update filtered tracks when tracks change
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredTracks(tracks);
-      return;
-    }
-    
-    const query = searchQuery.toLowerCase();
-    const filtered = tracks.filter(
-      track => 
-        track.title.toLowerCase().includes(query) ||
-        track.anime.toLowerCase().includes(query) ||
-        track.artists?.some(a => a.name.toLowerCase().includes(query))
-    );
-    
-    setFilteredTracks(filtered);
-  }, [searchQuery, tracks]);
+    setFilteredTracks(tracks);
+  }, [tracks]);
 
   const currentTrack = filteredTracks[currentTrackIndex] || null;
 
@@ -521,86 +456,163 @@ const MusicPlayer = () => {
                 Music Player
               </h1>
             </div>
-            <p className="text-lg md:text-xl text-muted-foreground">
-              Anime openings, endings, and full OSTs
-            </p>
           </div>
+          <p className="text-lg md:text-xl text-muted-foreground mb-6">
+            Anime openings, endings, and full OSTs
+          </p>
           
-          {/* Search Bar with Autocomplete */}
-          <div className="max-w-2xl mx-auto mt-6 relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search anime, songs, or artists..."
-                className="pl-10 pr-10 py-6 text-base rounded-full shadow-lg focus-visible:ring-2 focus-visible:ring-primary/50"
-                value={searchQuery}
-                onChange={(e) => {
-                  const query = e.target.value;
-                  setSearchQuery(query);
-                  fetchSuggestions(query);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchQuery.trim()) {
-                    searchThemes(searchQuery);
-                    setActiveTab('search');
-                    setShowSuggestions(false);
-                  }
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSearchSuggestions([]);
-                    searchInputRef.current?.focus();
-                  }}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
+          {/* New Music Search Bar */}
+          <MusicSearchBar 
+            currentSection={activeTab === 'search' ? 'anime' : undefined}
+            onAnimeSelect={async (anime) => {
+              // Replace the anime list with just this anime
+              const newAnime: AnimeWithThemes = {
+                id: anime.mal_id,
+                title: anime.title,
+                image: anime.images.jpg.large_image_url || anime.images.jpg.image_url,
+                themes: [],
+                isExpanded: true,
+                isLoading: true
+              };
+              setAnimeWithThemes([newAnime]);
               
-              {/* Search Suggestions */}
-              {showSuggestions && searchSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-card border rounded-lg shadow-lg max-h-60 overflow-auto">
-                  {searchSuggestions.map((suggestion) => (
-                    <div
-                      key={suggestion.id}
-                      className="px-4 py-2 hover:bg-secondary/50 cursor-pointer"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setSearchQuery(suggestion.title);
-                        searchThemes(suggestion.title);
-                        setActiveTab('search');
-                        setShowSuggestions(false);
-                      }}
-                    >
-                      {suggestion.title}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Button 
-              className="mt-4 rounded-full px-6 py-5 text-base font-medium"
-              onClick={() => {
-                if (searchQuery.trim()) {
-                  searchThemes(searchQuery);
-                  setActiveTab('search');
-                  setShowSuggestions(false);
+              // Load themes and replace the entire playlist
+              try {
+                const themes = await animeApi.getThemeSongs(anime.title, anime.mal_id);
+                
+                // Convert themes to tracks
+                const newTracks: Track[] = [];
+                for (const theme of themes) {
+                  const audioUrl = animeApi.getBestAudioUrl(theme);
+                  if (!audioUrl) continue;
+                  
+                  const videos = theme.videos || [];
+                  const bestVideo = videos
+                    .filter(v => v.audio || v.link)
+                    .sort((a, b) => {
+                      if (a.audio && !b.audio) return -1;
+                      if (!a.audio && b.audio) return 1;
+                      const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
+                      const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
+                      const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
+                      return bQuality - aQuality;
+                    })[0];
+                  
+                  newTracks.push({
+                    id: `${anime.mal_id}-${theme.id}-${bestVideo?.basename || bestVideo?.id || 0}`,
+                    title: theme.song?.title || `${theme.type} ${theme.sequence}`,
+                    anime: anime.title,
+                    type: theme.type,
+                    number: theme.sequence,
+                    animeImage: anime.images.jpg.large_image_url || anime.images.jpg.image_url,
+                    animeId: anime.mal_id,
+                    themeId: theme.id,
+                    artists: theme.song?.artists,
+                    videoUrl: bestVideo?.link,
+                    audioUrl: audioUrl,
+                    duration: bestVideo?.duration
+                  });
                 }
-              }}
-              disabled={!searchQuery.trim()}
-            >
-              <Search className="h-5 w-5 mr-2" />
-              Search Music
-            </Button>
-          </div>
+                
+                // Replace the entire playlist
+                setTracks(newTracks);
+                
+                // Update anime with loaded themes
+                setAnimeWithThemes([{
+                  ...newAnime,
+                  themes: themes,
+                  isLoading: false
+                }]);
+                
+                // Start playing the first track
+                if (newTracks.length > 0) {
+                  setCurrentTrackIndex(0);
+                  setIsPlaying(true);
+                }
+              } catch (error) {
+                console.error('Error loading anime themes:', error);
+                setAnimeWithThemes([{
+                  ...newAnime,
+                  isLoading: false
+                }]);
+              }
+              
+              setActiveTab('search');
+            }}
+            onTrackSelect={async (track) => {
+              // Load the anime and its full soundtrack
+              try {
+                const anime = await animeApi.getAnimeById(track.animeId);
+                if (anime) {
+                  const themes = await animeApi.getThemeSongs(anime.title, anime.mal_id);
+                  
+                  // Convert themes to tracks
+                  const newTracks: Track[] = [];
+                  for (const theme of themes) {
+                    const audioUrl = animeApi.getBestAudioUrl(theme);
+                    if (!audioUrl) continue;
+                    
+                    const videos = theme.videos || [];
+                    const bestVideo = videos
+                      .filter(v => v.audio || v.link)
+                      .sort((a, b) => {
+                        if (a.audio && !b.audio) return -1;
+                        if (!a.audio && b.audio) return 1;
+                        const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '360p': 0 };
+                        const aQuality = a.quality ? qualityOrder[a.quality as keyof typeof qualityOrder] ?? -1 : -1;
+                        const bQuality = b.quality ? qualityOrder[b.quality as keyof typeof qualityOrder] ?? -1 : -1;
+                        return bQuality - aQuality;
+                      })[0];
+                    
+                    newTracks.push({
+                      id: `${track.animeId}-${theme.id}-${bestVideo?.basename || bestVideo?.id || 0}`,
+                      title: theme.song?.title || `${theme.type} ${theme.sequence}`,
+                      anime: anime.title,
+                      type: theme.type,
+                      number: theme.sequence,
+                      animeImage: anime.images.jpg.large_image_url || anime.images.jpg.image_url,
+                      animeId: track.animeId,
+                      themeId: theme.id,
+                      artists: theme.song?.artists,
+                      videoUrl: bestVideo?.link,
+                      audioUrl: audioUrl,
+                      duration: bestVideo?.duration
+                    });
+                  }
+                  
+                  // Replace the entire playlist with this anime's soundtrack
+                  setTracks(newTracks);
+                  
+                  // Find the selected track in the new playlist
+                  const selectedIndex = newTracks.findIndex(t => t.id === track.id);
+                  if (selectedIndex >= 0) {
+                    setCurrentTrackIndex(selectedIndex);
+                    setIsPlaying(true);
+                  } else {
+                    // If exact track not found, play the first track
+                    setCurrentTrackIndex(0);
+                    setIsPlaying(true);
+                  }
+                  
+                  // Update the anime list to show this anime
+                  const newAnime: AnimeWithThemes = {
+                    id: anime.mal_id,
+                    title: anime.title,
+                    image: anime.images.jpg.large_image_url || anime.images.jpg.image_url,
+                    themes: themes,
+                    isExpanded: true,
+                    isLoading: false
+                  };
+                  setAnimeWithThemes([newAnime]);
+                  
+                  // Switch to playlist tab
+                  setActiveTab('playlist');
+                }
+              } catch (error) {
+                console.error('Error loading anime soundtrack:', error);
+              }
+            }}
+          />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -612,7 +624,7 @@ const MusicPlayer = () => {
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               <span>Search</span>
-              {activeTab === 'search' && searchQuery && (
+              {animeWithThemes.length > 0 && (
                 <span className="text-xs bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center">
                   {animeWithThemes.length}
                 </span>
@@ -983,22 +995,12 @@ const MusicPlayer = () => {
                           {filteredTracks.length} {filteredTracks.length === 1 ? 'track' : 'tracks'}
                         </span>
                       </div>
-                      {searchQuery && (
-                        <div className="mt-2">
-                          <Input
-                            placeholder="Filter tracks..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                      )}
                     </div>
                     
                     <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
                       {filteredTracks.length === 0 ? (
                         <div className="p-8 text-center text-muted-foreground">
-                          {searchQuery ? 'No matching tracks found' : 'No tracks in playlist'}
+                          No tracks in playlist
                         </div>
                       ) : (
                         <div className="divide-y">
