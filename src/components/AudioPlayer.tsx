@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, X, Loader2 } from 'lucide-react';
 import { ThemeSong } from '@/types/anime';
 import { Slider } from '@/components/ui/slider';
 import { youtubeService, YouTubeSearchResult, YouTubePlayer, YouTubePlayerEvent } from '@/services/youtubeService';
+import { youtubeAPIManager } from '@/lib/youtubeAPIManager';
 
 interface AudioPlayerProps {
   song: ThemeSong;
@@ -73,53 +74,101 @@ export const AudioPlayer = ({ song, onClose }: AudioPlayerProps) => {
   useEffect(() => {
     if (!youtubeResult) return;
 
-    // Load YouTube IFrame API if not already loaded
-    if (!window.YT) {
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(script);
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-      window.onYouTubeIframeAPIReady = () => {
-        initializePlayer();
-      };
-    } else {
-      initializePlayer();
-    }
+    const initializePlayer = async () => {
+      try {
+        // Load YouTube API if not already loaded
+        await youtubeAPIManager.loadAPI();
 
-    function initializePlayer() {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-      }
+        if (!isMounted) return;
 
-      playerRef.current = new window.YT.Player(playerContainerRef.current!, {
-        height: '0', // Hidden video
-        width: '0',  // Hidden video
-        videoId: youtubeResult.videoId,
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          iv_load_policy: 3,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-          showinfo: 0
-        },
-        events: {
-          onReady: onPlayerReady,
-          onStateChange: onPlayerStateChange
+        // Ensure the container element exists
+        if (!playerContainerRef.current) {
+          console.warn('Player container not found');
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(initializePlayer, 1000 * retryCount);
+          }
+          return;
         }
-      });
-    }
+
+        // Destroy existing player
+        if (playerRef.current) {
+          try {
+            playerRef.current.destroy();
+          } catch (e) {
+            console.warn('Error destroying previous player:', e);
+          }
+          playerRef.current = null;
+        }
+
+        // Create new player with timeout
+        const playerPromise = new Promise<YouTubePlayer>((resolve, reject) => {
+          const player = new window.YT.Player(playerContainerRef.current!, {
+            height: '0', // Hidden video
+            width: '0',  // Hidden video
+            videoId: youtubeResult.videoId,
+            playerVars: {
+              autoplay: 0,
+              controls: 0,
+              disablekb: 1,
+              fs: 0,
+              iv_load_policy: 3,
+              modestbranding: 1,
+              playsinline: 1,
+              rel: 0,
+              showinfo: 0
+            },
+            events: {
+              onReady: (event: YouTubePlayerEvent) => {
+                resolve(player);
+                onPlayerReady(event);
+              },
+              onStateChange: onPlayerStateChange,
+              onError: (event: YouTubePlayerEvent) => {
+                reject(new Error(`YouTube player error: ${event.data}`));
+              }
+            }
+          });
+
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            reject(new Error('YouTube player initialization timeout'));
+          }, 10000);
+        });
+
+        playerRef.current = await playerPromise;
+
+      } catch (error) {
+        console.error('Failed to initialize YouTube player:', error);
+
+        if (retryCount < maxRetries && isMounted) {
+          retryCount++;
+          console.log(`Retrying player initialization (${retryCount}/${maxRetries})...`);
+          setTimeout(initializePlayer, 2000 * retryCount);
+        } else {
+          setError('Failed to load audio player after multiple attempts');
+        }
+      }
+    };
+
+    initializePlayer();
 
     return () => {
+      isMounted = false;
       if (playerRef.current) {
-        playerRef.current.destroy();
+        try {
+          playerRef.current.destroy();
+        } catch (e) {
+          console.warn('Error destroying player in cleanup:', e);
+        }
         playerRef.current = null;
       }
     };
-  }, [youtubeResult, onPlayerReady, onPlayerStateChange]);
+  }, [youtubeResult]); // Remove onPlayerReady and onPlayerStateChange from dependencies
 
   useEffect(() => {
     if (playerRef.current) {
